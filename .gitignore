@@ -1,3 +1,16 @@
+# Temporary & Backup files
 *.bak
 *.tmp
 *.log
+Logs/
+
+# Generated Report Downloads
+*.xlsx
+*.pdf
+*.csv
+
+# Editor & System files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

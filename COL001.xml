@@ -1,0 +1,222 @@
+<report xmlns="http://developer.cognos.com/schemas/report/15.3/" expressionLocale="en-us" useStyleVersion="10"><!--RSU-SPC-0093 The report specification was upgraded from "http://developer.cognos.com/schemas/report/11.0/" to "http://developer.cognos.com/schemas/report/15.3/" at 2026-8-21. 16:46:28-->
+	<modelPath>/content/folder[@name='Ungdung_ToanNganh']/folder[@name='CROMS Báo cáo Cognos']/folder[@name='Cube']/package[@name='FS006 - DOCUMENTATION REPORT']/model[@name='2022-10-10T03:39:39.199Z']</modelPath>
+	<drillBehavior/>
+	<queries>
+		<query name="Query1">
+			<source>
+				<model/>
+			</source>
+			<selection><dataItem aggregate="none" name="Mã ID TSĐB (LOS)" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Mã ID TSĐB (LOS)]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Mã ID TSĐB (CORE)" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Mã ID TSĐB (CORE)]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Tên khách hàng" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Tên khách hàng]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Số CIF" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Số CIF]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Tên chủ sở hữu tài sản" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Tên chủ sở hữu tài sản]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="total" name="CIF chủ sở hữu tài sản"><expression>[present].[S_Q_COL001].[CIF chủ sở hữu tài sản]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="2"/><XMLAttribute name="RS_dataUsage" output="no" value="fact"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Tên TSĐB" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Tên TSĐB]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Loại tiền tệ" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Loại tiền tệ]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="total" name="Giá trị TSĐB"><expression>[present].[S_Q_COL001].[Giá trị TSĐB]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="2"/><XMLAttribute name="RS_dataUsage" output="no" value="fact"/></XMLAttributes></dataItem><dataItem aggregate="total" name="Hệ số TSĐB"><expression>[present].[S_Q_COL001].[Hệ số TSĐB]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="1"/><XMLAttribute name="RS_dataUsage" output="no" value="fact"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Số Facility được link" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Số Facility được link]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Ngày định giá gần nhất" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Ngày định giá gần nhất]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="4"/><XMLAttribute name="RS_dataUsage" output="no" value="identifier"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Ngày định giá tiếp theo" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Ngày định giá tiếp theo]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="4"/><XMLAttribute name="RS_dataUsage" output="no" value="identifier"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Ngày đăng ký GDĐB" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Ngày đăng ký GDĐB]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Ngày công chứng" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Ngày công chứng]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Tần suất định giá" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Tần suất định giá]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Số đăng ký GDBĐ" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Số đăng ký GDBĐ]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Số chứng nhận Quyền sở hữu" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Số chứng nhận Quyền sở hữu]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Ngày đăng ký quyền sở hữu" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Ngày đăng ký quyền sở hữu]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="4"/><XMLAttribute name="RS_dataUsage" output="no" value="identifier"/></XMLAttributes></dataItem><dataItem aggregate="none" name="CSA maker nhập" rollupAggregate="none"><expression>[present].[S_Q_COL001].[CSA maker nhập]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="CSA checker duyệt" rollupAggregate="none"><expression>[present].[S_Q_COL001].[CSA checker duyệt]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Mã phòng quản lý TSBĐ" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Mã phòng quản lý TSBĐ]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Mã chi nhánh" rollupAggregate="none"><expression>[present].[S_Q_BIDV_BRANCH].[Mã chi nhánh]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Loại tài sản con" rollupAggregate="none"><expression>[present].[S_Q_COLL_TYPE].[DESCRIPTION]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="SOURCE_TYPE" rollupAggregate="none"><expression>[present].[S_Q_COL001].[SOURCE_TYPE]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Tên người định giá" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Tên người định giá]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Số tiền phân bổ" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Số tiền phân bổ]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Số hợp đồng đảm bảo" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Số hợp đồng đảm bảo]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="3"/><XMLAttribute name="RS_dataUsage" output="no" value="attribute"/></XMLAttributes></dataItem><dataItem aggregate="none" name="Ngày hợp đồng đảm bảo" rollupAggregate="none"><expression>[present].[S_Q_COL001].[Ngày hợp đồng đảm bảo]</expression><XMLAttributes><XMLAttribute name="RS_dataType" output="no" value="4"/><XMLAttribute name="RS_dataUsage" output="no" value="identifier"/></XMLAttributes></dataItem></selection>
+			<detailFilters><detailFilter><filterExpression>[present].[S_Q_COL001].[REPORT_DATE] = ?Parameter1?</filterExpression></detailFilter><detailFilter><filterExpression>[present].[S_Q_BIDV_BRANCH].[Mã chi nhánh] in ?Parameter2?</filterExpression></detailFilter><detailFilter use="optional"><filterExpression>[present].[S_Q_COLL_TYPE].[Loại tài sản] in ?Parameter3?</filterExpression></detailFilter><detailFilter use="optional"><filterExpression>[present].[S_Q_COL001].[Mã phòng quản lý TSBĐ] = ?Parameter4?</filterExpression></detailFilter><detailFilter use="optional"><filterExpression>[present].[S_Q_COL001].[Số CIF] = ?Parameter5?</filterExpression></detailFilter><detailFilter use="optional"><filterExpression>[present].[S_Q_COL001].[Mã phòng quản lý TSBĐ] = ?Parameter6?</filterExpression></detailFilter><detailFilter><filterExpression>[present].[S_Q_COLL_TYPE].[CODE] in (?Parameter7?)</filterExpression></detailFilter></detailFilters><queryHints><localCache value="false"/></queryHints></query>
+		<query name="Query2"><source><model/></source><selection autoSummary="false"><dataItem aggregate="none" name="Mã chi nhánh"><expression>[present].[S_Q_BIDV_BRANCH].[Mã chi nhánh]</expression></dataItem><dataItem aggregate="none" name="Tên chi nhánh" sort="ascending"><expression>[present].[S_Q_BIDV_BRANCH].[Tên chi nhánh]</expression></dataItem></selection><queryHints><localCache value="false"/></queryHints></query><query name="Query3"><source><model/></source><selection><dataItem aggregate="none" name="CODE"><expression>[present].[S_Q_COLL_TYPE].[CODE]</expression></dataItem><dataItem aggregate="none" name="DESCRIPTION" sort="ascending"><expression>[present].[S_Q_COLL_TYPE].[DESCRIPTION]</expression></dataItem></selection></query></queries>
+	<layouts>
+		<layout>
+			<reportPages>
+				<page name="Page1"><style><defaultStyles><defaultStyle refStyle="pg"/></defaultStyles></style>
+					<pageBody><style><defaultStyles><defaultStyle refStyle="pb"/></defaultStyles></style>
+						<contents>
+							<list horizontalPagination="true" name="List1" refQuery="Query1">
+								<noDataHandler>
+									<contents>
+										<block>
+											<contents>
+												<textItem>
+													<dataSource>
+														<staticValue>No Data Available</staticValue>
+													</dataSource>
+													<style>
+														<CSS value="padding:10px 18px;"/>
+													</style>
+												</textItem>
+											</contents>
+										</block>
+									</contents>
+								</noDataHandler>
+								<style>
+									<defaultStyles>
+										<defaultStyle refStyle="ls"/>
+									</defaultStyles>
+									<CSS value="border-collapse:collapse;font-family:'Times New Roman';font-size:13pt"/>
+								</style>
+								<listColumns><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>STT</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><rowNumber>
+													<style>
+														<dataFormat>
+															<numberFormat/>
+														</dataFormat>
+													</style>
+												</rowNumber></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Mã chi nhánh"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Mã chi nhánh"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>Mã ID TSĐB (CROMS)</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Mã ID TSĐB (LOS)"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Mã ID TSĐB (CORE)"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Mã ID TSĐB (CORE)"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Tên TSĐB"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Tên TSĐB"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>Loại TSĐB (Sub-type)</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Loại tài sản con"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>CIF khách hàng vay</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Số CIF"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>Tên khách hàng vay</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Tên khách hàng"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>CIF chủ sở hữu TSĐB</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lm"/></defaultStyles><dataFormat><format digitShaping="none" pattern=""/></dataFormat></style><contents><textItem><dataSource><dataItemValue refDataItem="CIF chủ sở hữu tài sản"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>Tên chủ sở hữu TSĐB</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Tên chủ sở hữu tài sản"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Giá trị TSĐB"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lm"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Giá trị TSĐB"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>Đơn vị tiền tệ</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Loại tiền tệ"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Hệ số TSĐB"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lm"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Hệ số TSĐB"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><staticValue>Loại định giá</staticValue></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="SOURCE_TYPE"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Tần suất định giá"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Tần suất định giá"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Ngày định giá gần nhất"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles><dataFormat><dateFormat pattern="dd/MM/yyyy"/></dataFormat></style><contents><textItem><dataSource><dataItemValue refDataItem="Ngày định giá gần nhất"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Ngày định giá tiếp theo"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles><dataFormat><dateFormat pattern="dd/MM/yyyy"/></dataFormat></style><contents><textItem><dataSource><dataItemValue refDataItem="Ngày định giá tiếp theo"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Tên người định giá"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Tên người định giá"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Số Facility được link"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Số Facility được link"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Số tiền phân bổ"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Số tiền phân bổ"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Loại tiền tệ"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Loại tiền tệ"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Số đăng ký GDBĐ"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Số đăng ký GDBĐ"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Ngày đăng ký GDĐB"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles><dataFormat><dateFormat pattern="dd/MM/yyyy"/></dataFormat></style><contents><textItem><dataSource><dataItemValue refDataItem="Ngày đăng ký GDĐB"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Số chứng nhận Quyền sở hữu"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Số chứng nhận Quyền sở hữu"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Ngày đăng ký quyền sở hữu"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles><dataFormat><dateFormat pattern="dd/MM/yyyy"/></dataFormat></style><contents><textItem><dataSource><dataItemValue refDataItem="Ngày đăng ký quyền sở hữu"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Ngày công chứng"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles><dataFormat><dateFormat pattern="dd/MM/yyyy"/></dataFormat></style><contents><textItem><dataSource><dataItemValue refDataItem="Ngày công chứng"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Số hợp đồng đảm bảo"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Số hợp đồng đảm bảo"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Ngày hợp đồng đảm bảo"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles><dataFormat><dateFormat/></dataFormat></style><contents><textItem><dataSource><dataItemValue refDataItem="Ngày hợp đồng đảm bảo"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="Mã phòng quản lý TSBĐ"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="Mã phòng quản lý TSBĐ"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="CSA maker nhập"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="CSA maker nhập"/></dataSource></textItem></contents></listColumnBody></listColumn><listColumn><listColumnTitle><style><defaultStyles><defaultStyle refStyle="lt"/></defaultStyles></style><contents><textItem><dataSource><dataItemLabel refDataItem="CSA checker duyệt"/></dataSource></textItem></contents></listColumnTitle><listColumnBody><style><defaultStyles><defaultStyle refStyle="lc"/></defaultStyles></style><contents><textItem><dataSource><dataItemValue refDataItem="CSA checker duyệt"/></dataSource></textItem></contents></listColumnBody></listColumn></listColumns><listPageHeader><listRows><listRow><rowCells><rowCell><contents><textItem><dataSource><staticValue>1</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>2</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>3</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>4</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>5</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>6</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>7</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>8</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>9</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>10</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>11</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>12</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>13</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>14</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>15</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>16</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>17</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>18</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>19</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>21</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>22</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>23</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>24</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>25</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>26</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>27</staticValue></dataSource></textItem></contents><style><CSS value="text-align:center"/><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>28</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>29</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>30</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>31</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell><rowCell><contents><textItem><dataSource><staticValue>32</staticValue></dataSource></textItem></contents><style><defaultStyles><defaultStyle refStyle="lh"/></defaultStyles><CSS value="text-align:center"/></style></rowCell></rowCells></listRow></listRows></listPageHeader><sortList><sortItem refDataItem="Mã chi nhánh"/><sortItem refDataItem="Mã ID TSĐB (LOS)"/><sortItem refDataItem="Mã ID TSĐB (CORE)"/><sortItem refDataItem="Số CIF"/><sortItem refDataItem="Tên khách hàng"/></sortList></list>
+						</contents>
+					</pageBody>
+					<pageHeader>
+						<contents>
+							<block><style><defaultStyles><defaultStyle refStyle="ta"/></defaultStyles></style>
+								<contents>
+									<textItem><style><defaultStyles><defaultStyle refStyle="tt"/></defaultStyles><CSS value="text-decoration:none"/></style>
+										<dataSource>
+											<staticValue>Báo cáo tổng quan về tài sản</staticValue>
+										</dataSource>
+									</textItem>
+								</contents>
+							</block>
+							<block>
+								<contents><textItem><dataSource><staticValue>Report ID: COL001</staticValue></dataSource></textItem></contents>
+								<style><CSS value="font-family:'Times New Roman';font-size:13pt"/></style></block><block>
+								<contents><textItem><dataSource><staticValue>Ngày báo cáo :</staticValue></dataSource></textItem><textItem><dataSource><reportExpression>timestamp2date(string2timestamp(ParamValue('Parameter1')))</reportExpression></dataSource><style><dataFormat><dateFormat pattern="dd/MM/yyyy"/></dataFormat></style></textItem></contents>
+								<style><CSS value="font-family:'Times New Roman';font-size:13pt"/></style></block></contents>
+						<style>
+							<defaultStyles>
+								<defaultStyle refStyle="ph"/>
+							</defaultStyles>
+							<CSS value="padding-bottom:10px"/>
+						</style>
+					</pageHeader>
+					<pageFooter>
+						<contents>
+							<table>
+								<tableRows>
+									<tableRow>
+										<tableCells>
+											<tableCell>
+												<contents>
+													<date>
+														<style>
+															<dataFormat>
+																<dateFormat/>
+															</dataFormat>
+														</style>
+													</date>
+												</contents>
+												<style>
+													<CSS value="vertical-align:top;text-align:left;width:25%"/>
+												</style>
+											</tableCell>
+											<tableCell>
+												<contents>
+													<pageNumber/>
+												</contents>
+												<style>
+													<CSS value="vertical-align:top;text-align:center;width:50%"/>
+												</style>
+											</tableCell>
+											<tableCell>
+												<contents>
+													<time>
+														<style>
+															<dataFormat>
+																<timeFormat/>
+															</dataFormat>
+														</style>
+													</time>
+												</contents>
+												<style>
+													<CSS value="vertical-align:top;text-align:right;width:25%"/>
+												</style>
+											</tableCell>
+										</tableCells>
+									</tableRow>
+								</tableRows>
+								<style>
+									<defaultStyles>
+										<defaultStyle refStyle="tb"/>
+									</defaultStyles>
+									<CSS value="border-collapse:collapse;width:100%"/>
+								</style>
+							</table>
+						</contents>
+						<style>
+							<defaultStyles>
+								<defaultStyle refStyle="pf"/>
+							</defaultStyles>
+							<CSS value="padding-top:10px"/>
+						</style>
+					</pageFooter>
+				</page>
+			</reportPages>
+			<promptPages><page name="Prompt Page1">
+					<pageHeader>
+						<contents>
+							<block>
+								<contents>
+									<textItem>
+										<dataSource>
+											<staticValue>Điều kiện lọc</staticValue>
+										</dataSource>
+										<style>
+											<defaultStyles>
+												<defaultStyle refStyle="tt"/>
+											</defaultStyles>
+											<CSS value="text-decoration:none"/></style>
+									</textItem>
+								</contents>
+								<style>
+									<defaultStyles>
+										<defaultStyle refStyle="ta"/>
+									</defaultStyles>
+								</style>
+							</block>
+						</contents>
+						<style>
+							<defaultStyles>
+								<defaultStyle refStyle="hp"/>
+							</defaultStyles>
+						</style>
+					</pageHeader>
+					<pageBody>
+						<contents><block>
+								<contents><textItem><dataSource><staticValue>Ngày báo cáo :</staticValue></dataSource><style><CSS value="font-size:11pt"/></style></textItem><selectDate parameter="Parameter1"/></contents>
+								<style><CSS value="font-family:'Times New Roman';font-size:13pt"/></style></block><table><style><defaultStyles><defaultStyle refStyle="tb"/></defaultStyles><CSS value="border-collapse:collapse;width:100%"/></style><tableRows><tableRow><tableCells><tableCell><contents><textItem><dataSource><staticValue>Chi nhánh :</staticValue></dataSource></textItem></contents><style><CSS value="padding:5px 10px 5px 10px;width:170px;font-family:'Times New Roman';font-size:11pt"/></style></tableCell><tableCell><contents><selectValue multiSelect="true" parameter="Parameter2" refQuery="Query2" selectValueUI="checkboxGroup"><useItem refDataItem="Mã chi nhánh"><displayItem refDataItem="Tên chi nhánh"/></useItem><style><CSS value="width:400px;height:100px"/></style></selectValue></contents><style><CSS value="padding:5px 10px 5px 10px"/></style></tableCell><tableCell><contents/></tableCell></tableCells></tableRow><tableRow><tableCells><tableCell><contents/><style><CSS value="font-family:'Times New Roman';font-size:11pt"/></style></tableCell><tableCell><contents/></tableCell><tableCell><contents/></tableCell></tableCells></tableRow><tableRow><tableCells><tableCell><contents><textItem><dataSource><staticValue>Loại tài sản :</staticValue></dataSource></textItem></contents><style><CSS value="padding:5px 10px 5px 10px;font-family:'Times New Roman';font-size:11pt;width:200px"/></style></tableCell><tableCell><contents><selectValue multiSelect="true" parameter="Parameter7" refQuery="Query3" selectValueUI="checkboxGroup"><useItem refDataItem="CODE"><displayItem refDataItem="DESCRIPTION"/></useItem><style><CSS value="width:400px;height:100px"/></style></selectValue></contents><style><CSS value="padding:5px 10px 5px 10px"/></style></tableCell><tableCell><contents/></tableCell></tableCells></tableRow><tableRow><tableCells><tableCell><contents><textItem><dataSource><staticValue>Số CIF :</staticValue></dataSource></textItem></contents><style><CSS value="padding:5px 10px 5px 10px;font-family:'Times New Roman';font-size:11pt"/></style></tableCell><tableCell><contents><textBox parameter="Parameter5" required="false"/></contents><style><CSS value="padding:5px 10px 5px 10px"/></style></tableCell><tableCell><contents/></tableCell></tableCells></tableRow><tableRow><tableCells><tableCell><contents><textItem><dataSource><staticValue>Mã phòng quản lý TSBĐ :</staticValue></dataSource></textItem></contents><style><CSS value="padding:5px 10px 5px 10px;font-family:'Times New Roman';font-size:11pt"/></style></tableCell><tableCell><contents><textBox parameter="Parameter6" required="false"/></contents><style><CSS value="padding:5px 10px 5px 10px"/></style></tableCell><tableCell><contents/></tableCell></tableCells></tableRow><tableRow><tableCells><tableCell><contents/></tableCell><tableCell><contents/></tableCell><tableCell><contents/></tableCell></tableCells></tableRow></tableRows></table></contents>
+						<style>
+							<defaultStyles>
+								<defaultStyle refStyle="py"/>
+							</defaultStyles>
+						</style>
+					</pageBody>
+					<pageFooter>
+						<contents>
+							<promptButton type="cancel">
+								<contents/>
+								<style>
+									<defaultStyles>
+										<defaultStyle refStyle="bp"/>
+									</defaultStyles>
+								</style>
+							</promptButton>
+							<promptButton type="back">
+								<contents/>
+								<style>
+									<defaultStyles>
+										<defaultStyle refStyle="bp"/>
+									</defaultStyles>
+								</style>
+							</promptButton>
+							<promptButton type="next">
+								<contents/>
+								<style>
+									<defaultStyles>
+										<defaultStyle refStyle="bp"/>
+									</defaultStyles>
+								</style>
+							</promptButton>
+							<promptButton type="finish">
+								<contents/>
+								<style>
+									<defaultStyles>
+										<defaultStyle refStyle="bp"/>
+									</defaultStyles>
+								</style>
+							</promptButton>
+						</contents>
+						<style>
+							<defaultStyles>
+								<defaultStyle refStyle="fp"/>
+							</defaultStyles>
+						</style>
+					</pageFooter>
+					<style>
+						<defaultStyles>
+							<defaultStyle refStyle="pp"/>
+						</defaultStyles>
+					</style>
+				</page></promptPages></layout>
+	</layouts>
+	<XMLAttributes><XMLAttribute name="RS_CreateExtendedDataItems" output="no" value="true"/><XMLAttribute name="listSeparator" output="no" value=","/><XMLAttribute output="no" name="RS_modelModificationTime" value="2022-10-10T03:39:39.330Z"/><XMLAttribute output="no" name="decimalSeparator" value="."/></XMLAttributes><reportName>COL001-Báo cáo tổng quan về tài sản</reportName></report>

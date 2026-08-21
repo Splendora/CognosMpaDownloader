@@ -10,8 +10,10 @@
 
 ```
 CognosDownloader/
+├── CognosCommon.ps1             # Shared core module (Credentials, HTTP client, dynamic tokens, CAM login, prompt inspector)
 ├── CognosReportDownloader.ps1   # Headless batch execution script for automated report downloads
-├── Manage-CognosConfig.ps1      # Interactive CLI console manager for configuration & prompt inspection
+├── Manage-CognosConfig.ps1      # Interactive CLI console manager for configuration, prompt discovery & test runner
+├── CognosConfigGui.ps1          # Windows Forms GUI configuration manager, choice picker & batch runner
 ├── cognos-reports.json          # Configuration file defining server endpoints and report definitions
 └── AGENTS.md                    # Repository documentation and instructions for AI agents
 ```
@@ -20,7 +22,26 @@ CognosDownloader/
 
 ## Core Components & Architecture
 
-### 1. `CognosReportDownloader.ps1`
+### 1. `CognosCommon.ps1`
+Shared module dot-sourced by `CognosReportDownloader.ps1`, `Manage-CognosConfig.ps1`, and `CognosConfigGui.ps1`.
+
+* **Responsibilities**:
+  * Win32 Windows Credential Manager P/Invoke (`advapi32.dll` `CredRead`, `CredWrite`, `CredFree`).
+  * Dynamic token resolution engine (`Resolve-DynamicTokens`) for dates and metadata in paths and parameters.
+  * HTTP Client setup, redirect loop handling (`Invoke-CognosRequest`), and cookie management.
+  * CAM XML credentials payload generation and login authentication (`Invoke-CognosLogin`).
+  * Structured Cognos prompt inspection (`Get-CognosReportParameters`):
+    * Extracts prompt types (`selectValue`, `selectDate`, `textBox`).
+    * Extracts multi-select & cardinality flags.
+    * Extracts mandatory (`IsRequired`) vs. optional prompt indicators.
+    * Extracts full choice lists (`useValue` and `displayValue`).
+    * Extracts server-configured default values.
+  * Multi-value query parameter serialization (`Add-QueryParameter`): serializes JSON array prompts as repeated query parameters (`&param=val1&param=val2`).
+  * Multi-instance endpoint resolution (`Get-CognosInstances`, `Get-CognosReportInstance`).
+  * UTF-8 JSON configuration file reading, writing, and backup management (`Load-CognosConfig`, `Save-CognosConfig`).
+  * Unified log and console output formatting (`Write-Log`, `Write-AuditLog`).
+
+### 2. `CognosReportDownloader.ps1`
 Headless execution script designed for scheduled tasks (e.g., Windows Task Scheduler) or CI/CD pipelines.
 
 * **Parameters**:
@@ -31,39 +52,58 @@ Headless execution script designed for scheduled tasks (e.g., Windows Task Sched
   1. Loads configuration from `cognos-reports.json`.
   2. Retrieves credentials securely from Windows Credential Manager via Win32 `advapi32.dll` P/Invoke (`CredRead`).
   3. Authenticates via POST to `/v1/disp/rds/auth/logon` with CAM XML payload and extracts the `XSRF-TOKEN` session cookie.
-  4. Iterates through all enabled reports and output formats in parallel/sequential batches.
+  4. Iterates through all enabled reports and output formats across configured instances.
   5. Resolves dynamic date and prompt tokens in parameters and file output paths.
   6. Sends GET request to `/v1/disp/rds/outputFormat/{sourceType}/{source}/{format}?v=3` with `X-XSRF-TOKEN` header.
-  7. Validates binary payload (checking against Cognos `RDS-ERR` XML responses) and writes files to disk.
+  7. Validates binary payload (checking against Cognos `RDS-ERR` XML responses, SOAP faults, and XML error envelopes) and writes files to disk.
 
-### 2. `Manage-CognosConfig.ps1`
-Interactive terminal application for managing report configurations without manual JSON editing.
+### 3. `CognosConfigGui.ps1` & `Manage-CognosConfig.ps1`
+Configuration management interfaces available in both graphical desktop and terminal interactive modes.
 
-* **Menu Actions**:
-  1. `[1] List / View all configured reports`: Displays all configured reports with live evaluation preview of parameters and output paths.
-  2. `[2] Add a new report`: Prompts for StoreID/ReportID, connects to Cognos RDS (`/v1/disp/rds/reportPrompts/`), auto-detects prompt parameters, offers date presets (`{Yesterday}`, `{Today}`, `{MonthStart}`), and sets up default output path templates.
-  3. `[3] Edit an existing report`: Modifies parameter values, toggles enabled/disabled state, updates output path templates, or re-syncs prompt parameters from the server.
-  4. `[4] Remove a report`: Deletes a report definition from the config.
-  5. `[5] Test Cognos connection & authentication`: Validates current credentials and server connectivity.
-  6. `[6] Re-configure server URL / Credentials`: Re-initializes server URL, namespace, and stored Windows generic credential.
+* **Graphical UI (`CognosConfigGui.ps1` / `Manage-CognosConfig.ps1 -Gui`)**:
+  * Windows Forms desktop manager for managing reports, multi-instance endpoints, prompt discovery, live path previews, and on-demand test downloads.
+  * **Batch Runner**: Main tab includes "Tải Tất Cả Báo Cáo" with multi-instance session caching.
+  * **Visual Choice Picker**: Searchable checklist dialog (`Show-ChoiceSelectionDialog`) for browsing and selecting server-provided choice lists.
+  * **Prompt Requirement Indicators**: Color-coded `BẮT BUỘC (*)` vs `Tùy chọn` prompt status in the parameters table.
+* **Console UI (`Manage-CognosConfig.ps1`)**:
+  * Terminal menu application with prompt parameter discovery, numbered server choices selection, live previews, and batch download triggering (Menu `[8]`).
 
-### 3. `cognos-reports.json`
-Schema structure for configuring server endpoints and report definitions:
+### 4. `cognos-reports.json`
+Schema structure for configuring multi-instance server endpoints, shared credentials, logging, and report definitions:
 
 ```json
 {
-  "CognosBaseUrl": "http://<cognos-host>/ibmcognos/bi",
-  "Namespace": "<Cognos-CAM-Namespace>",
-  "CredentialTarget": "CognosReportAutomation:<cognos-host>",
+  "CredentialTarget": "COGNOS",
+  "DefaultInstance": "ODS",
+  "Instances": {
+    "ODS": {
+      "CognosBaseUrl": "http://10.53.153.173/ibmcognos/bi",
+      "Namespace": "BIDV"
+    },
+    "BIDV_Core": {
+      "CognosBaseUrl": "http://10.53.153.174/ibmcognos/bi",
+      "Namespace": "BIDV"
+    }
+  },
+  "Logging": {
+    "Enabled": true,
+    "LogDirectory": ".\\Logs",
+    "LogFileName": "CognosDownloader_{yyyyMMdd}.log",
+    "LogLevel": "INFO",
+    "RetentionDays": 30,
+    "AuditCsvEnabled": true,
+    "AuditCsvPath": ".\\Logs\\Audit_{yyyyMM}.csv"
+  },
   "Reports": [
     {
-      "Name": "Descriptive Report Name",
-      "Source": "<StoreID-or-Path>",
+      "Name": "Báo cáo nợ đến hạn, quá hạn hàng ngày",
+      "Instance": "ODS",
+      "Source": "i54414D93B29A4D2289C4E88469871644",
       "SourceType": "report",
       "Enabled": true,
       "Parameters": {
         "p_ReportDate": "{Yesterday}",
-        "p_Branch": ""
+        "p_Branch": ["121000", "121150"]
       },
       "Formats": [
         {
@@ -75,6 +115,21 @@ Schema structure for configuring server endpoints and report definitions:
   ]
 }
 ```
+
+---
+
+## Logging & Auditing System
+
+The logging engine in `CognosCommon.ps1` provides unified console feedback, persistent file logs, and machine-readable execution audits:
+
+* **Console & File Logging (`Write-Log`)**:
+  * Levels: `DEBUG`, `INFO`, `OK`, `WARN`, `ERROR` with configurable threshold filtering (`LogLevel`).
+  * File format: `[yyyy-MM-dd HH:mm:ss] [LEVEL] Message`.
+* **Execution Metrics & Audit Tracking (`Write-AuditLog`)**:
+  * Appends execution records to a rolling monthly CSV (`Audit_{yyyyMM}.csv`).
+  * Columns: `Timestamp`, `ReportName`, `Source`, `Format`, `Status`, `HttpStatusCode`, `FileSizeBytes`, `DurationMs`, `OutputPath`, `ErrorMessage`.
+* **Automatic Retention (`Invoke-LogRetentionCleanup`)**:
+  * Automatically scans the log directory and purges log/audit files exceeding `RetentionDays` (default: 30 days).
 
 ---
 
@@ -94,6 +149,7 @@ Both `CognosReportDownloader.ps1` and `Manage-CognosConfig.ps1` implement `Resol
 | `{HHmmss}` | `113000` | Standard time token |
 | `{ReportName}` | `Daily Branch Summary` | Cleaned friendly report name |
 | `{Source}` | `i54414D93B29A4D2289C4E88469871644` | Report ID / StoreID |
+| `{Instance}` | `ODS` | Linked Cognos instance name |
 | `{Format}` | `xlsxData` | Output format name |
 | `{p_ParameterName}` | *evaluated value* | Dynamically injects another parameter's value into the path |
 
@@ -126,8 +182,12 @@ Both `CognosReportDownloader.ps1` and `Manage-CognosConfig.ps1` implement `Resol
    * Explicitly load `System.Net.Http` via `Add-Type -AssemblyName System.Net.Http`.
    * Enforce `Set-StrictMode -Version Latest` and `$ErrorActionPreference = 'Stop'`.
    * Avoid PowerShell 7+ specific operators (like ternary `? :` or null-coalescing `??`) inside `.ps1` scripts unless guarded or implemented using standard `if/else`.
-2. **Error Handling & Resource Management**:
+2. **File Encoding Standard**:
+   * **Mandatory UTF-8 with BOM (`utf-8-sig`)**: Always save all `.ps1` files with a UTF-8 BOM. Windows PowerShell 5.1 interprets UTF-8 files without BOM using the system ANSI code page (e.g. CP1252), causing Unicode string corruption and syntax parse errors.
+3. **Error Handling & Resource Management**:
    * Always dispose `HttpClientHandler`, `HttpClient`, `HttpRequestMessage`, and `HttpResponseMessage` in `finally` blocks or via proper disposal routines.
-   * Check HTTP status codes and inspect payload contents for `<rds:error` or `RDS-ERR` tokens to avoid saving error HTML/XML pages as valid report binaries.
-3. **Configuration Preservation**:
+   * Check HTTP status codes and inspect payload contents for `<rds:error`, `RDS-ERR`, `<soapenv:Fault>`, or XML error root tags on binary formats to avoid saving error HTML/XML pages as valid report binaries.
+4. **Configuration Preservation**:
    * When modifying `cognos-reports.json` programmatically or via scripts, retain UTF-8 encoding and back up the previous config as `cognos-reports.json.bak`.
+5. **Git Workflow & Commits**:
+   * Do not commit or push every single change automatically. Only commit or push when explicitly requested by the user or when completing a defined milestone.

@@ -1,405 +1,171 @@
-#requires -Version 5.1
-<#
+﻿<#
 .SYNOPSIS
-    Interactive one-stop-shop manager to create, view, add, edit, and sync cognos-reports.json.
-    Includes smart date parameter detection, {Yesterday} presets, and live path evaluation.
+    Công cụ dòng lệnh tương tác (CLI) quản lý cấu hình cognos-reports.json.
+    Hỗ trợ môi trường đa máy chủ Cognos, dùng chung tài khoản, gợi ý tham số ngày thông minh và xem trước đường dẫn tệp.
 #>
 
 [CmdletBinding()]
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot 'cognos-reports.json')
+    [string]$ConfigPath = '.\cognos-reports.json',
+    [switch]$Gui
 )
+
+$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Definition }
+if (-not $scriptDir) { $scriptDir = (Get-Location).Path }
+if ([string]::IsNullOrWhiteSpace($ConfigPath) -or $ConfigPath -eq '.\cognos-reports.json') {
+    $ConfigPath = Join-Path $scriptDir 'cognos-reports.json'
+}
+
+if ($Gui) {
+    & (Join-Path $scriptDir 'CognosConfigGui.ps1') -ConfigPath $ConfigPath
+    exit 0
+}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Load System.Net.Http assembly (required for Windows PowerShell 5.1)
-Add-Type -AssemblyName System.Net.Http
+# Nạp module dùng chung
+. (Join-Path $scriptDir 'CognosCommon.ps1')
 
 # -----------------------------------------------------------------------------
-# Dynamic Token & Date Resolution (for live previewing)
+# Hàm Trợ giúp Phiên Kết nối (Session Helper)
 # -----------------------------------------------------------------------------
-
-function Resolve-DynamicTokens {
-    param(
-        [AllowEmptyString()]
-        [AllowNull()]
-        [string]$Text = '',
-
-        $Report = $null,
-
-        [AllowEmptyString()]
-        [AllowNull()]
-        [string]$Format = ''
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Text)) { return $Text }
-
-    $now = Get-Date
-    $resolved = $Text
-
-    $today = $now.Date
-    $yesterday = $today.AddDays(-1)
-    $monthStart = [DateTime]::new($today.Year, $today.Month, 1)
-    $monthEnd = $monthStart.AddMonths(1).AddDays(-1)
-
-    $resolved = $resolved.Replace('{Yesterday}', $yesterday.ToString('yyyy-MM-dd'))
-    $resolved = $resolved.Replace('{Today}', $today.ToString('yyyy-MM-dd'))
-    $resolved = $resolved.Replace('{MonthStart}', $monthStart.ToString('yyyy-MM-dd'))
-    $resolved = $resolved.Replace('{MonthEnd}', $monthEnd.ToString('yyyy-MM-dd'))
-
-    $resolved = [regex]::Replace($resolved, '\{(Yesterday|Today)(:([^}]+))?\}', {
-        param($match)
-        $baseDate = if ($match.Groups[1].Value -eq 'Yesterday') { $yesterday } else { $today }
-        $fmt = if ($match.Groups[3].Success) { $match.Groups[3].Value } else { 'yyyy-MM-dd' }
-        return $baseDate.ToString($fmt)
-    })
-
-    $resolved = [regex]::Replace($resolved, '\{Today([+-]\d+)d?(:([^}]+))?\}', {
-        param($match)
-        $days = [int]$match.Groups[1].Value
-        $targetDate = $today.AddDays($days)
-        $fmt = if ($match.Groups[3].Success) { $match.Groups[3].Value } else { 'yyyy-MM-dd' }
-        return $targetDate.ToString($fmt)
-    })
-
-    $resolved = $resolved.Replace('{yyyy}', $now.ToString('yyyy'))
-    $resolved = $resolved.Replace('{MM}', $now.ToString('MM'))
-    $resolved = $resolved.Replace('{dd}', $now.ToString('dd'))
-    $resolved = $resolved.Replace('{yyyyMMdd}', $now.ToString('yyyyMMdd'))
-    $resolved = $resolved.Replace('{yyyy-MM-dd}', $now.ToString('yyyy-MM-dd'))
-    $resolved = $resolved.Replace('{HHmmss}', $now.ToString('HHmmss'))
-
-    if ($null -ne $Report) {
-        $reportName = if ($Report.PSObject.Properties['Name'] -and $Report.Name) { [string]$Report.Name } else { [string]$Report.Source }
-        $resolved = $resolved.Replace('{ReportName}', $reportName)
-        $resolved = $resolved.Replace('{Source}', [string]$Report.Source)
-        if (-not [string]::IsNullOrWhiteSpace($Format)) {
-            $resolved = $resolved.Replace('{Format}', $Format)
-        }
-
-        if ($Report.PSObject.Properties['Parameters'] -and $null -ne $Report.Parameters) {
-            foreach ($prop in $Report.Parameters.PSObject.Properties) {
-                $rawVal = if ($null -ne $prop.Value) { [string]$prop.Value } else { '' }
-                $evaluatedVal = Resolve-DynamicTokens -Text $rawVal
-                $cleanVal = $evaluatedVal -replace '[\\/:*?"<>|]', '-'
-                $resolved = $resolved.Replace("{$($prop.Name)}", $cleanVal)
-                if ($prop.Name.StartsWith('p_')) {
-                    $resolved = $resolved.Replace("{$($prop.Name.Substring(2))}", $cleanVal)
-                }
-            }
-        }
-    }
-
-    return $resolved
-}
-
-# -----------------------------------------------------------------------------
-# Windows Credential Manager Functions
-# -----------------------------------------------------------------------------
-
-if (-not ('CognosCredManager.NativeMethods' -as [type])) {
-    Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-namespace CognosCredManager
-{
-    public static class NativeMethods
-    {
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        public struct CREDENTIAL
-        {
-            public UInt32 Flags;
-            public UInt32 Type;
-            public IntPtr TargetName;
-            public IntPtr Comment;
-            public Int64 LastWritten;
-            public UInt32 CredentialBlobSize;
-            public IntPtr CredentialBlob;
-            public UInt32 Persist;
-            public UInt32 AttributeCount;
-            public IntPtr Attributes;
-            public IntPtr TargetAlias;
-            public IntPtr UserName;
-        }
-
-        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern bool CredRead(string TargetName, UInt32 Type, UInt32 Flags, out IntPtr Credential);
-
-        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern bool CredWrite(ref CREDENTIAL Credential, UInt32 Flags);
-
-        [DllImport("advapi32.dll", SetLastError = true)]
-        public static extern void CredFree(IntPtr Credential);
-    }
-}
-"@
-}
-
-function Set-StoredCredential {
-    param([string]$Target, [string]$Username, [Security.SecureString]$Password)
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
-    $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    $cred = New-Object CognosCredManager.NativeMethods+CREDENTIAL
-
-    try {
-        $cred.Flags = 0
-        $cred.Type = 1
-        $cred.Persist = 2
-        $cred.TargetName = [Runtime.InteropServices.Marshal]::StringToCoTaskMemUni($Target)
-        $cred.UserName = [Runtime.InteropServices.Marshal]::StringToCoTaskMemUni($Username)
-        $blobBytes = [Text.Encoding]::Unicode.GetBytes($plain)
-        $cred.CredentialBlobSize = [UInt32]$blobBytes.Length
-        if ($blobBytes.Length -gt 0) {
-            $cred.CredentialBlob = [Runtime.InteropServices.Marshal]::AllocCoTaskMem($blobBytes.Length)
-            [Runtime.InteropServices.Marshal]::Copy($blobBytes, 0, $cred.CredentialBlob, $blobBytes.Length)
-        }
-        if (-not [CognosCredManager.NativeMethods]::CredWrite([ref]$cred, 0)) {
-            throw "CredWrite failed: $([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
-        }
-    }
-    finally {
-        if ($bstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
-        if ($cred.TargetName -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeCoTaskMem($cred.TargetName) }
-        if ($cred.UserName -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeCoTaskMem($cred.UserName) }
-        if ($cred.CredentialBlob -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeCoTaskMem($cred.CredentialBlob) }
-    }
-}
-
-function Get-StoredCredential {
-    param([string]$Target)
-    $ptr = [IntPtr]::Zero
-    try {
-        $success = [CognosCredManager.NativeMethods]::CredRead($Target, 1, 0, [ref]$ptr)
-        if (-not $success) { return $null }
-
-        $method = [Runtime.InteropServices.Marshal].GetMethod('PtrToStructure', [type[]]@([IntPtr], [Type]))
-        $native = $method.Invoke($null, @($ptr, [CognosCredManager.NativeMethods+CREDENTIAL]))
-
-        $username = if ($native.UserName -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::PtrToStringUni($native.UserName) } else { '' }
-        $password = ''
-        if ($native.CredentialBlob -ne [IntPtr]::Zero -and $native.CredentialBlobSize -gt 0) {
-            $blobBytes = New-Object byte[] $native.CredentialBlobSize
-            [Runtime.InteropServices.Marshal]::Copy($native.CredentialBlob, $blobBytes, 0, [int]$native.CredentialBlobSize)
-            $password = [Text.Encoding]::Unicode.GetString($blobBytes)
-        }
-        return [pscustomobject]@{ Username = $username; Password = (ConvertTo-SecureString $password -AsPlainText -Force) }
-    }
-    finally {
-        if ($ptr -ne [IntPtr]::Zero) { [CognosCredManager.NativeMethods]::CredFree($ptr) }
-    }
-}
-
-function Get-PlainText {
-    param([Security.SecureString]$SecureString)
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureString)
-    try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
-    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
-}
-
-# -----------------------------------------------------------------------------
-# HTTP & Login Functions
-# -----------------------------------------------------------------------------
-
-function New-HttpClient {
-    $cookies = New-Object System.Net.CookieContainer
-    $handler = New-Object System.Net.Http.HttpClientHandler -Property @{
-        CookieContainer   = $cookies
-        AllowAutoRedirect = $false
-        UseCookies        = $true
-    }
-    $client = New-Object System.Net.Http.HttpClient($handler)
-    $client.Timeout = [TimeSpan]::FromMinutes(5)
-    return [pscustomobject]@{ Client = $client; Cookies = $cookies }
-}
-
-function Invoke-CognosRequest {
-    param(
-        [Parameter(Mandatory)] $Context,
-        [Parameter(Mandatory)] [ValidateSet('GET', 'POST')] [string]$Method,
-        [Parameter(Mandatory)] [uri]$Uri,
-        [hashtable]$Headers,
-        [System.Net.Http.HttpContent]$Content,
-        [int]$MaxRedirects = 10
-    )
-
-    $current = $Uri
-    $redirectCount = 0
-
-    while ($true) {
-        $httpMethod = if ($Method -eq 'GET') { [System.Net.Http.HttpMethod]::Get } else { [System.Net.Http.HttpMethod]::Post }
-        $request = New-Object System.Net.Http.HttpRequestMessage($httpMethod, $current)
-
-        if ($Headers) {
-            foreach ($key in $Headers.Keys) {
-                [void]$request.Headers.TryAddWithoutValidation($key, [string]$Headers[$key])
-            }
-        }
-        if ($null -ne $Content) { $request.Content = $Content }
-
-        $response = $Context.Client.SendAsync($request).GetAwaiter().GetResult()
-        $statusCode = [int]$response.StatusCode
-
-        if ($statusCode -in @(300, 301, 302, 303, 307, 308)) {
-            if ($redirectCount -ge $MaxRedirects) { throw "Too many redirects requesting $current" }
-            $location = $response.Headers.Location
-            if ($null -ne $location) {
-                $current = if ($location.IsAbsoluteUri) { $location } else { [uri]::new($current, $location) }
-                $redirectCount++
-                $response.Dispose()
-                continue
-            }
-        }
-        return [pscustomobject]@{ Response = $response; FinalUri = $current }
-    }
-}
-
-function Invoke-Login {
-    param($Context, [string]$BaseUrl, [string]$Namespace, [string]$Username, [Security.SecureString]$Password)
-    $plain = Get-PlainText $Password
-    $xml = @"
-<credentials xmlns="http://developer.cognos.com/schemas/ccs/auth/types/1">
-  <credentialElements><name>CAMNamespace</name><label>Namespace:</label><value><actualValue>$([System.Security.SecurityElement]::Escape($Namespace))</actualValue></value></credentialElements>
-  <credentialElements><name>CAMUsername</name><label>User ID:</label><value><actualValue>$([System.Security.SecurityElement]::Escape($Username))</actualValue></value></credentialElements>
-  <credentialElements><name>CAMPassword</name><label>Password:</label><value><actualValue>$([System.Security.SecurityElement]::Escape($plain))</actualValue></value></credentialElements>
-</credentials>
-"@
-    $dict = [System.Collections.Generic.Dictionary[string, string]]::new()
-    $dict['xmlData'] = $xml
-    $form = New-Object System.Net.Http.FormUrlEncodedContent($dict)
-    $url = [uri]::new(($BaseUrl.TrimEnd('/') + '/v1/disp/rds/auth/logon'))
-
-    $result = Invoke-CognosRequest -Context $Context -Method POST -Uri $url -Content $form
-    $body = $result.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-    $result.Response.Dispose()
-
-    if ($body -notmatch 'accountInfo') {
-        throw "Logon failed. Server response: $body"
-    }
-
-    foreach ($cookie in $Context.Cookies.GetCookies($url)) {
-        if ($cookie.Name -ieq 'XSRF-TOKEN') { return $cookie.Value }
-    }
-    throw 'Login succeeded but XSRF-TOKEN cookie was not found.'
-}
-
-function Get-ReportParameters {
-    param($Context, [string]$BaseUrl, [string]$SourceType, [string]$Source, [string]$Xsrf)
-
-    $endpointType = if ($SourceType -ieq 'path') { 'path' } else { 'report' }
-    $encodedSource = [uri]::EscapeDataString($Source)
-    $url = [uri]::new(($BaseUrl.TrimEnd('/') + "/v1/disp/rds/reportPrompts/${endpointType}/${encodedSource}?v=3"))
-
-    $headers = @{ 'X-XSRF-TOKEN' = $Xsrf }
-    $result = Invoke-CognosRequest -Context $Context -Method GET -Uri $url -Headers $headers
-    $xmlText = $result.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-    $currentUri = $result.FinalUri
-    $result.Response.Dispose()
-
-    $pollCount = 0
-    while ($xmlText -match '<rds:url>(.*?)</rds:url>' -and $pollCount -lt 10) {
-        $relUrl = $matches[1].Replace('&amp;', '&')
-        $sessionUrl = [uri]::new($currentUri, $relUrl)
-        Start-Sleep -Milliseconds 500
-        $sessionResult = Invoke-CognosRequest -Context $Context -Method GET -Uri $sessionUrl -Headers $headers
-        $xmlText = $sessionResult.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-        $currentUri = $sessionResult.FinalUri
-        $sessionResult.Response.Dispose()
-        $pollCount++
-    }
-
-    $params = [ordered]@{}
-    try {
-        [xml]$doc = $xmlText
-        $pnodes = $doc.SelectNodes("//*[local-name()='pname' or local-name()='parameter']")
-        if ($null -ne $pnodes) {
-            foreach ($node in $pnodes) {
-                $rawName = $node.InnerText.Trim()
-                if (-not [string]::IsNullOrWhiteSpace($rawName)) {
-                    $paramKey = if ($rawName.StartsWith('p_')) { $rawName } else { "p_$rawName" }
-                    $params[$paramKey] = ""
-                }
-            }
-        }
-    }
-    catch {
-        Write-Warning "Error parsing prompt XML for '$Source': $($_.Exception.Message)"
-    }
-    return $params
-}
-
-# -----------------------------------------------------------------------------
-# Configuration File Management
-# -----------------------------------------------------------------------------
-
-function Load-Config {
-    if (-not (Test-Path -LiteralPath $ConfigPath)) { return $null }
-    $raw = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8
-    return ($raw | ConvertFrom-Json)
-}
-
-function Save-Config {
-    param($Config)
-    if (Test-Path -LiteralPath $ConfigPath) {
-        Copy-Item -LiteralPath $ConfigPath -Destination "$ConfigPath.bak" -Force
-    }
-    $jsonText = $Config | ConvertTo-Json -Depth 10
-    [System.IO.File]::WriteAllText($ConfigPath, $jsonText, [System.Text.Encoding]::UTF8)
-    Write-Host "[OK] Configuration saved to: $ConfigPath" -ForegroundColor Green
-}
 
 function Connect-CognosSession {
-    param($Config)
-    $credTarget = if ($Config.PSObject.Properties['CredentialTarget'] -and $Config.CredentialTarget) {
-        [string]$Config.CredentialTarget
-    } else {
-        'CognosReportAutomation:' + ([uri]$Config.CognosBaseUrl).Host
+    param(
+        [Parameter(Mandatory)] $Config,
+        $Instance = $null
+    )
+
+    $allInstances = Get-CognosInstances -Config $Config
+    if ($allInstances.Count -eq 0) {
+        throw "Không có máy chủ Cognos nào được cấu hình trong $ConfigPath."
     }
 
-    $cred = Get-StoredCredential -Target $credTarget
+    $targetInstance = $Instance
+    if ($null -eq $targetInstance) {
+        if ($allInstances.Count -eq 1) {
+            foreach ($k in $allInstances.Keys) { $targetInstance = $allInstances[$k] }
+        } else {
+            Write-Host "`nChọn máy chủ Cognos để kết nối:" -ForegroundColor Cyan
+            $instKeys = @($allInstances.Keys)
+            for ($i = 0; $i -lt $instKeys.Count; $i++) {
+                $k = $instKeys[$i]
+                $inst = $allInstances[$k]
+                Write-Host "  [$($i + 1)] $k ($($inst.CognosBaseUrl) - $($inst.Namespace))"
+            }
+            $choice = Read-Host "Chọn máy chủ [1-$($instKeys.Count), mặc định: 1]"
+            $idx = if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le $instKeys.Count) { [int]$choice - 1 } else { 0 }
+            $targetInstance = $allInstances[$instKeys[$idx]]
+        }
+    }
+
+    $credTarget = Get-RequiredProperty -Object $Config -Name 'CredentialTarget'
+
+    $cred = Get-WindowsGenericCredential -Target $credTarget
     if ($null -eq $cred) {
-        Write-Host "`n[AUTH] No saved credentials found for $credTarget. Please enter them:" -ForegroundColor Yellow
-        $userCred = Get-Credential -Message "Cognos Credentials"
-        if ($null -eq $userCred) { throw "Credential input cancelled." }
-        Set-StoredCredential -Target $credTarget -Username $userCred.UserName -Password $userCred.Password
+        Write-Host "`n[XÁC THỰC] Chưa tìm thấy thông tin đăng nhập cho '$credTarget'. Vui lòng nhập:" -ForegroundColor Yellow
+        $userCred = Get-Credential -Message "Tài khoản Cognos ($credTarget)"
+        if ($null -eq $userCred) { throw "Đã hủy nhập thông tin tài khoản." }
+        Set-WindowsGenericCredential -Target $credTarget -Username $userCred.UserName -Password $userCred.Password
         $cred = [pscustomobject]@{ Username = $userCred.UserName; Password = $userCred.Password }
     }
 
-    Write-Host "Connecting to Cognos at $($Config.CognosBaseUrl)..." -ForegroundColor Cyan
-    $http = New-HttpClient
-    $xsrf = Invoke-Login -Context $http -BaseUrl $Config.CognosBaseUrl -Namespace $Config.Namespace -Username $cred.Username -Password $cred.Password
-    Write-Host "[OK] Authenticated as $($cred.Username)." -ForegroundColor Green
+    Write-Host "Đang kết nối tới [$($targetInstance.Name)] tại $($targetInstance.CognosBaseUrl)..." -ForegroundColor Cyan
+    $http = New-CognosHttpClient -TimeoutMinutes 5
+    $xsrf = Invoke-CognosLogin -Context $http -CognosBaseUrl $targetInstance.CognosBaseUrl -Namespace $targetInstance.Namespace -Username $cred.Username -Password $cred.Password
+    Write-Host "[OK] Đăng nhập thành công với tài khoản $($cred.Username) trên [$($targetInstance.Name)]." -ForegroundColor Green
 
-    return [pscustomobject]@{ Http = $http; Xsrf = $xsrf }
+    return [pscustomobject]@{ Http = $http; Xsrf = $xsrf; Instance = $targetInstance }
 }
 
-# Helper to intelligently prompt for parameter value (with dynamic date suggestions)
-function Prompt-ForParameterValue {
-    param([string]$ParamName, [AllowEmptyString()][string]$CurrentVal = '')
+# -----------------------------------------------------------------------------
+# Hàm Trợ giúp Nhập Tham số (Parameter Prompting Helper)
+# -----------------------------------------------------------------------------
 
+function Prompt-ForParameterValue {
+    param(
+        [string]$ParamName,
+        [AllowEmptyString()][string]$CurrentVal = '',
+        $ParamInfo = $null
+    )
+
+    $reqLabel = if ($null -ne $ParamInfo -and $ParamInfo.IsRequired) { "[BẮT BUỘC *]" } else { "[Tùy chọn]" }
+
+    # 1. Nếu có danh sách lựa chọn từ máy chủ Cognos
+    if ($null -ne $ParamInfo -and $ParamInfo.Choices -and @($ParamInfo.Choices).Count -gt 0) {
+        $choices = @($ParamInfo.Choices)
+        Write-Host "`n  Tham số '$ParamName' $reqLabel có $($choices.Count) lựa chọn từ máy chủ Cognos:" -ForegroundColor $(if ($null -ne $ParamInfo -and $ParamInfo.IsRequired) { 'Yellow' } else { 'Cyan' })
+        $maxShow = [Math]::Min($choices.Count, 25)
+        for ($i = 0; $i -lt $maxShow; $i++) {
+            $c = $choices[$i]
+            $disp = if ($c.Display -and $c.Display -ne $c.Use) { "$($c.Use) - $($c.Display)" } else { "$($c.Use)" }
+            Write-Host "    [$($i + 1)] $disp"
+        }
+        if ($choices.Count -gt 25) {
+            Write-Host "    ... (còn $($choices.Count - 25) lựa chọn khác)" -ForegroundColor DarkGray
+        }
+
+        $defChoice = if ($ParamInfo.DefaultValue) {
+            if ($ParamInfo.DefaultValue -is [System.Collections.IEnumerable] -and -not ($ParamInfo.DefaultValue -is [string])) {
+                ($ParamInfo.DefaultValue | ForEach-Object { [string]$_ }) -join ', '
+            } else {
+                [string]$ParamInfo.DefaultValue
+            }
+        } elseif (-not [string]::IsNullOrWhiteSpace($CurrentVal)) {
+            $CurrentVal
+        } else { '' }
+
+        Write-Host "    [T] Nhập giá trị tùy chỉnh / token"
+        Write-Host "    [0] Để trống"
+
+        $multiTag = if ($ParamInfo.IsMultiSelect) { " (Có thể nhập nhiều số cách nhau dấu phẩy VD: 1, 2)" } else { "" }
+        $promptMsg = "  Chọn mục [1-$maxShow$multiTag" + (if ($defChoice) { ", Mặc định: $defChoice" } else { "" }) + "]"
+        $ans = Read-Host $promptMsg
+
+        if ([string]::IsNullOrWhiteSpace($ans)) { return $defChoice }
+        if ($ans -ieq '0') { return '' }
+        if ($ans -ieq 't') { return (Read-Host "  Nhập giá trị tùy chỉnh") }
+
+        $tokens = @($ans -split '[,;\s]+' | Where-Object { $_ })
+        $picked = [System.Collections.Generic.List[string]]::new()
+        foreach ($tok in $tokens) {
+            $idx = 0
+            if ([int]::TryParse($tok, [ref]$idx) -and $idx -ge 1 -and $idx -le $choices.Count) {
+                $picked.Add($choices[$idx - 1].Use)
+            } else {
+                $picked.Add($tok)
+            }
+        }
+        if ($picked.Count -gt 0) {
+            return ($picked -join ', ')
+        }
+        return $defChoice
+    }
+
+    # 2. Nếu là kiểu ngày tháng
     $isDateParam = ($ParamName -match 'date|ngay|time|denhan|quahan')
     
     if ($isDateParam) {
         $defaultOption = if (-not [string]::IsNullOrWhiteSpace($CurrentVal)) { $CurrentVal } else { '{Yesterday}' }
-        Write-Host "`n  Parameter '$ParamName' looks like a Date/Time parameter:" -ForegroundColor Cyan
-        Write-Host "    [1] {Yesterday}   (Evaluates to: $((Get-Date).AddDays(-1).ToString('yyyy-MM-dd')))"
-        Write-Host "    [2] {Today}       (Evaluates to: $((Get-Date).ToString('yyyy-MM-dd')))"
-        Write-Host "    [3] {MonthStart}  (First day of month)"
-        Write-Host "    [4] Custom Value"
-        Write-Host "    [5] Leave Empty"
-        $choice = Read-Host "  Select preset [1-5, Default: $defaultOption]"
+        Write-Host "`n  Tham số '$ParamName' $reqLabel là kiểu Ngày/Giờ:" -ForegroundColor $(if ($null -ne $ParamInfo -and $ParamInfo.IsRequired) { 'Yellow' } else { 'Cyan' })
+        Write-Host "    [1] {Yesterday}   (Tính toán: $((Get-Date).AddDays(-1).ToString('yyyy-MM-dd')) - Ngày hôm qua)"
+        Write-Host "    [2] {Today}       (Tính toán: $((Get-Date).ToString('yyyy-MM-dd')) - Ngày hôm nay)"
+        Write-Host "    [3] {MonthStart}  (Ngày đầu tiên của tháng)"
+        Write-Host "    [4] Nhập giá trị tùy chỉnh"
+        Write-Host "    [5] Để trống"
+        $choice = Read-Host "  Chọn định dạng mẫu [1-5, Mặc định: $defaultOption]"
         
         switch ($choice) {
             '1' { return '{Yesterday}' }
             '2' { return '{Today}' }
             '3' { return '{MonthStart}' }
-            '4' { return (Read-Host "  Enter custom value") }
+            '4' { return (Read-Host "  Nhập giá trị tùy chỉnh") }
             '5' { return '' }
             default { return $defaultOption }
         }
     } else {
-        $promptMsg = "  $ParamName" + (if (-not [string]::IsNullOrWhiteSpace($CurrentVal)) { " [Current: '$CurrentVal']" } else { " (press Enter to leave empty)" })
+        $promptMsg = "  $ParamName $reqLabel" + (if (-not [string]::IsNullOrWhiteSpace($CurrentVal)) { " [Hiện tại: '$CurrentVal']" } else { " (nhấn Enter để để trống)" })
         $val = Read-Host $promptMsg
         if ([string]::IsNullOrWhiteSpace($val)) { return $CurrentVal }
         return $val
@@ -407,81 +173,116 @@ function Prompt-ForParameterValue {
 }
 
 # -----------------------------------------------------------------------------
-# Interactive Actions
+# Các Chức năng Tương tác (Interactive Actions)
 # -----------------------------------------------------------------------------
 
 function Action-InitConfig {
-    Write-Host "`n=== Initial Server Configuration ===" -ForegroundColor Cyan
-    $url = Read-Host "Enter Cognos Base URL (e.g. http://cognos-server:9300/bi)"
-    $ns  = Read-Host "Enter Cognos Namespace (e.g. LDAP or ActiveDirectory)"
-    $target = "CognosReportAutomation:" + ([uri]$url).Host
+    Write-Host "`n=== Khởi tạo Cấu hình Máy chủ Mới ===" -ForegroundColor Cyan
+    $instName = Read-Host "Nhập tên máy chủ chính (VD: ODS, BIDV_Core) [mặc định: ODS]"
+    if ([string]::IsNullOrWhiteSpace($instName)) { $instName = 'ODS' }
 
-    Write-Host "Enter Cognos login credentials to store securely in Windows Credential Manager:" -ForegroundColor Yellow
-    $userCred = Get-Credential -Message "Cognos Account"
+    $url = Read-Host "Nhập Cognos Base URL cho $instName (VD: http://10.53.153.173/ibmcognos/bi)"
+    $ns  = Read-Host "Nhập Cognos Namespace (VD: BIDV)"
+    $target = Read-Host "Nhập tên đối tượng xác thực Windows (Credential Target) [mặc định: COGNOS]"
+    if ([string]::IsNullOrWhiteSpace($target)) { $target = 'COGNOS' }
+
+    Write-Host "Nhập thông tin tài khoản đăng nhập Cognos để lưu bảo mật trong Windows Credential Manager:" -ForegroundColor Yellow
+    $userCred = Get-Credential -Message "Tài khoản Cognos ($target)"
     if ($null -ne $userCred) {
-        Set-StoredCredential -Target $target -Username $userCred.UserName -Password $userCred.Password
+        Set-WindowsGenericCredential -Target $target -Username $userCred.UserName -Password $userCred.Password
+    }
+
+    $instances = [ordered]@{}
+    $instances[$instName] = [ordered]@{
+        CognosBaseUrl = $url.TrimEnd('/')
+        Namespace     = $ns.Trim()
     }
 
     $newConfig = [ordered]@{
-        CognosBaseUrl    = $url.TrimEnd('/')
-        Namespace        = $ns.Trim()
         CredentialTarget = $target
+        DefaultInstance  = $instName
+        Instances        = $instances
+        Logging          = [ordered]@{
+            Enabled         = $true
+            LogDirectory    = ".\\Logs"
+            LogFileName     = "CognosDownloader_{yyyyMMdd}.log"
+            LogLevel        = "INFO"
+            RetentionDays   = 30
+            AuditCsvEnabled = $true
+            AuditCsvPath    = ".\\Logs\\Audit_{yyyyMM}.csv"
+        }
         Reports          = @()
     }
-    Save-Config -Config $newConfig
+    Save-CognosConfig -Path $ConfigPath -Config $newConfig
+    Write-Host "[OK] Cấu hình đã được lưu vào: $ConfigPath" -ForegroundColor Green
     return $newConfig
 }
 
 function Action-ListReports {
     param($Config)
-    $reports = if ($Config.PSObject.Properties['Reports'] -and $Config.Reports) { @($Config.Reports) } else { @() }
+    $rawReports = Get-PropOrKey -Object $Config -Name 'Reports'
+    $reports = if ($null -ne $rawReports) { @($rawReports) } else { @() }
     if (@($reports).Count -eq 0) {
-        Write-Host "`nNo reports configured yet." -ForegroundColor Yellow
+        Write-Host "`nChưa có báo cáo nào được cấu hình." -ForegroundColor Yellow
         return
     }
 
-    Write-Host "`n=== Configured Reports ($(@($reports).Count)) ===" -ForegroundColor Cyan
+    Write-Host "`n=== Danh sách Báo cáo đã Cấu hình ($(@($reports).Count)) ===" -ForegroundColor Cyan
     for ($i = 0; $i -lt @($reports).Count; $i++) {
         $rep = $reports[$i]
-        $enabledStr = if ($rep.PSObject.Properties['Enabled'] -and $rep.Enabled -eq $false) { "[DISABLED]" } else { "[ACTIVE]" }
-        $color = if ($enabledStr -eq '[ACTIVE]') { 'Green' } else { 'DarkGray' }
-        Write-Host "[$($i + 1)] $enabledStr $($rep.Name) (Source: $($rep.Source))" -ForegroundColor $color
+        $enabled = Get-PropOrKey -Object $rep -Name 'Enabled'
+        $enabledStr = if ($null -ne $enabled -and $enabled -eq $false) { "[ĐÃ TẮT]" } else { "[ĐANG BẬT]" }
+        $color = if ($enabledStr -eq '[ĐANG BẬT]') { 'Green' } else { 'DarkGray' }
+        
+        $instObj = try { Get-CognosReportInstance -Config $Config -Report $rep } catch { $null }
+        $instTag = if ($instObj) { "[Máy chủ: $($instObj.Name)]" } else { "" }
 
-        # Display Parameters with live evaluation preview
-        if ($rep.PSObject.Properties['Parameters'] -and $null -ne $rep.Parameters) {
-            $paramProps = @($rep.Parameters.PSObject.Properties)
-            if ($paramProps.Count -gt 0) {
-                Write-Host "    Parameters:" -ForegroundColor Gray
-                foreach ($p in $paramProps) {
-                    $rawVal = if ([string]::IsNullOrWhiteSpace([string]$p.Value)) { "<EMPTY>" } else { [string]$p.Value }
-                    $preview = if ($rawVal -ne '<EMPTY>') { Resolve-DynamicTokens -Text $rawVal } else { '' }
-                    
-                    if ($preview -and $preview -ne $rawVal) {
-                        Write-Host "      - $($p.Name) = $rawVal -> (Evaluates to: $preview)" -ForegroundColor Yellow
+        $repName = Get-PropOrKey -Object $rep -Name 'Name'
+        $repSource = Get-PropOrKey -Object $rep -Name 'Source'
+        Write-Host "[$($i + 1)] $enabledStr $instTag $repName (StoreID: $repSource)" -ForegroundColor $color
+
+        # Hiển thị Tham số với giá trị tính toán thực tế
+        $paramsObj = Get-PropOrKey -Object $rep -Name 'Parameters'
+        if ($null -ne $paramsObj) {
+            $paramProps = @(Get-ObjectKeyValuePairs -Object $paramsObj)
+            if (@($paramProps).Count -gt 0) {
+                Write-Host "    Tham số Prompt:" -ForegroundColor Gray
+                foreach ($p in @($paramProps)) {
+                    if ($p.Value -is [System.Collections.IEnumerable] -and -not ($p.Value -is [string])) {
+                        $arrStr = ($p.Value | ForEach-Object { [string]$_ }) -join ', '
+                        Write-Host "      - $($p.Name) = [$arrStr] (Mảng $(@($p.Value).Count) phần tử)" -ForegroundColor Yellow
                     } else {
-                        Write-Host "      - $($p.Name) = $rawVal" -ForegroundColor Yellow
+                        $rawVal = if ([string]::IsNullOrWhiteSpace([string]$p.Value)) { "<TRỐNG>" } else { [string]$p.Value }
+                        $preview = if ($rawVal -ne '<TRỐNG>') { Resolve-DynamicTokens -Text $rawVal } else { '' }
+                        
+                        if ($preview -and $preview -ne $rawVal) {
+                            Write-Host "      - $($p.Name) = $rawVal -> (Tính toán: $preview)" -ForegroundColor Yellow
+                        } else {
+                            Write-Host "      - $($p.Name) = $rawVal" -ForegroundColor Yellow
+                        }
                     }
                 }
             } else {
-                Write-Host "    Parameters: None" -ForegroundColor Gray
+                Write-Host "    Tham số Prompt: Không có" -ForegroundColor Gray
             }
         } else {
-            Write-Host "    Parameters: None" -ForegroundColor Gray
+            Write-Host "    Tham số Prompt: Không có" -ForegroundColor Gray
         }
 
-        # Display Formats with live path preview
-        if ($rep.PSObject.Properties['Formats'] -and $null -ne $rep.Formats) {
-            $formatList = @($rep.Formats)
-            if ($formatList.Count -gt 0) {
-                Write-Host "    Formats:" -ForegroundColor Gray
+        # Hiển thị Định dạng & Xem trước Đường dẫn
+        $fmtsObj = Get-PropOrKey -Object $rep -Name 'Formats'
+        if ($null -ne $fmtsObj) {
+            $formatList = @($fmtsObj)
+            if (@($formatList).Count -gt 0) {
+                Write-Host "    Định dạng:" -ForegroundColor Gray
                 foreach ($f in $formatList) {
-                    $rawPath = if ($f.PSObject.Properties['OutputPath'] -and $null -ne $f.OutputPath) { [string]$f.OutputPath } else { '' }
-                    $rawFmt  = if ($f.PSObject.Properties['Format'] -and $null -ne $f.Format) { [string]$f.Format } else { '' }
+                    $rawPath = [string](Get-PropOrKey -Object $f -Name 'OutputPath')
+                    $rawFmt  = [string](Get-PropOrKey -Object $f -Name 'Format')
 
                     Write-Host "      - $rawFmt -> $rawPath" -ForegroundColor White
                     if (-not [string]::IsNullOrWhiteSpace($rawPath)) {
                         $evaluatedPath = Resolve-DynamicTokens -Text $rawPath -Report $rep -Format $rawFmt
-                        Write-Host "        Live File Preview: $evaluatedPath" -ForegroundColor DarkCyan
+                        Write-Host "        Đường dẫn thực tế: $evaluatedPath" -ForegroundColor DarkCyan
                     }
                 }
             }
@@ -491,35 +292,59 @@ function Action-ListReports {
 
 function Action-AddReport {
     param($Config)
-    $session = Connect-CognosSession -Config $Config
+    $allInstances = Get-CognosInstances -Config $Config
+    if ($allInstances.Count -eq 0) {
+        Write-Host "Không có máy chủ Cognos nào được cấu hình." -ForegroundColor Red
+        return
+    }
 
-    Write-Host "`n=== Add New Report ===" -ForegroundColor Cyan
-    $source = Read-Host "Enter Report ID / StoreID (e.g. i54414D93B29A4D2289C4E88469871644)"
+    # Chọn máy chủ nếu có nhiều máy chủ
+    $selectedInstance = $null
+    if ($allInstances.Count -eq 1) {
+        foreach ($k in $allInstances.Keys) { $selectedInstance = $allInstances[$k] }
+    } else {
+        Write-Host "`nChọn máy chủ Cognos cho báo cáo này:" -ForegroundColor Cyan
+        $instKeys = @($allInstances.Keys)
+        for ($i = 0; $i -lt $instKeys.Count; $i++) {
+            $k = $instKeys[$i]
+            $inst = $allInstances[$k]
+            Write-Host "  [$($i + 1)] $k ($($inst.CognosBaseUrl))"
+        }
+        $choice = Read-Host "Chọn máy chủ [1-$($instKeys.Count), mặc định: 1]"
+        $idx = if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le $instKeys.Count) { [int]$choice - 1 } else { 0 }
+        $selectedInstance = $allInstances[$instKeys[$idx]]
+    }
+
+    $session = Connect-CognosSession -Config $Config -Instance $selectedInstance
+
+    Write-Host "`n=== Thêm Báo cáo Mới vào [$($selectedInstance.Name)] ===" -ForegroundColor Cyan
+    $source = Read-Host "Nhập Mã Báo cáo / StoreID (VD: i54414D93B29A4D2289C4E88469871644)"
     if ([string]::IsNullOrWhiteSpace($source)) { return }
 
-    $name = Read-Host "Enter friendly Report Name (optional, press Enter for default)"
+    $name = Read-Host "Nhập Tên Báo cáo (tùy chọn, nhấn Enter để lấy mặc định)"
     if ([string]::IsNullOrWhiteSpace($name)) { $name = "Report_$source" }
 
-    Write-Host "Inspecting prompt parameters from Cognos..." -ForegroundColor Cyan
-    $discovered = Get-ReportParameters -Context $session.Http -BaseUrl $Config.CognosBaseUrl -SourceType "report" -Source $source -Xsrf $session.Xsrf
+    Write-Host "Đang dò tìm tham số prompt từ máy chủ Cognos [$($selectedInstance.Name)]..." -ForegroundColor Cyan
+    $discovered = Get-CognosReportParameters -Context $session.Http -BaseUrl $selectedInstance.CognosBaseUrl -SourceType "report" -Source $source -Xsrf $session.Xsrf
 
     $params = [ordered]@{}
     if ($discovered.Count -gt 0) {
-        Write-Host "`nFound $($discovered.Count) parameter(s):" -ForegroundColor Green
+        Write-Host "`nTìm thấy $($discovered.Count) tham số từ máy chủ Cognos:" -ForegroundColor Green
         foreach ($k in $discovered.Keys) {
-            $params[$k] = Prompt-ForParameterValue -ParamName $k
+            $pInfo = $discovered[$k]
+            $params[$k] = Prompt-ForParameterValue -ParamName $k -ParamInfo $pInfo
         }
     } else {
-        Write-Host "No prompt parameters required for this report." -ForegroundColor Yellow
+        Write-Host "Báo cáo này không yêu cầu tham số prompt." -ForegroundColor Yellow
     }
 
-    # Choose format
-    Write-Host "`nSelect Default Output Format:"
-    Write-Host "  [1] xlsxData (Excel Data - simple tabular list)"
-    Write-Host "  [2] spreadsheetML (Excel XML - best for formatted reports)"
+    # Chọn định dạng
+    Write-Host "`nChọn Định dạng Xuất Mặc định:"
+    Write-Host "  [1] xlsxData (Excel Dữ liệu - dạng bảng thuần túy)"
+    Write-Host "  [2] spreadsheetML (Excel XML - giữ nguyên định dạng mẫu biểu)"
     Write-Host "  [3] PDF"
     Write-Host "  [4] CSV"
-    $fmtChoice = Read-Host "Choose format [1-4, default: 1]"
+    $fmtChoice = Read-Host "Chọn định dạng [1-4, mặc định: 1]"
     $formatName = switch ($fmtChoice) {
         '2' { 'spreadsheetML' }
         '3' { 'PDF' }
@@ -533,14 +358,14 @@ function Action-AddReport {
         default { 'xlsx' }
     }
 
-    # Standardized Default Naming Template: D:\CognosReports\{Yesterday:yyyyMMdd}_{ReportName}.ext
     $defaultTemplate = "D:\CognosReports\{Yesterday:yyyyMMdd}_{ReportName}.${ext}"
-    Write-Host "`nDefault File Path Template: $defaultTemplate" -ForegroundColor Cyan
-    $pathInput = Read-Host "Enter Output Path (press Enter to accept default)"
+    Write-Host "`nMẫu Đường dẫn Tệp Mặc định: $defaultTemplate" -ForegroundColor Cyan
+    $pathInput = Read-Host "Nhập Đường dẫn Lưu (nhấn Enter để dùng mặc định)"
     $outputPath = if (-not [string]::IsNullOrWhiteSpace($pathInput)) { $pathInput.Trim() } else { $defaultTemplate }
 
     $newRep = [ordered]@{
         Name       = $name
+        Instance   = $selectedInstance.Name
         Source     = $source
         SourceType = "report"
         Enabled    = $true
@@ -559,156 +384,237 @@ function Action-AddReport {
     }
     $list.Add($newRep)
 
-    $finalConfig = [ordered]@{
-        CognosBaseUrl    = $Config.CognosBaseUrl
-        Namespace        = $Config.Namespace
-        CredentialTarget = $Config.CredentialTarget
-        Reports          = $list
-    }
+    $finalConfig = [ordered]@{}
+    if ($Config.PSObject.Properties['CognosBaseUrl']) { $finalConfig['CognosBaseUrl'] = $Config.CognosBaseUrl }
+    if ($Config.PSObject.Properties['Namespace']) { $finalConfig['Namespace'] = $Config.Namespace }
+    if ($Config.PSObject.Properties['CredentialTarget']) { $finalConfig['CredentialTarget'] = $Config.CredentialTarget }
+    if ($Config.PSObject.Properties['DefaultInstance']) { $finalConfig['DefaultInstance'] = $Config.DefaultInstance }
+    if ($Config.PSObject.Properties['Instances']) { $finalConfig['Instances'] = $Config.Instances }
+    if ($Config.PSObject.Properties['Logging']) { $finalConfig['Logging'] = $Config.Logging }
+    $finalConfig['Reports'] = $list
 
-    Save-Config -Config $finalConfig
-    Write-Host "[SUCCESS] Added '$name' to configuration." -ForegroundColor Green
+    Save-CognosConfig -Path $ConfigPath -Config $finalConfig
+    Write-Host "[OK] Cấu hình đã được lưu vào: $ConfigPath" -ForegroundColor Green
+    Write-Host "[THÀNH CÔNG] Đã thêm báo cáo '$name' vào máy chủ [$($selectedInstance.Name)]." -ForegroundColor Green
 }
 
 function Action-EditReport {
     param($Config)
-    $reports = if ($Config.PSObject.Properties['Reports'] -and $Config.Reports) { @($Config.Reports) } else { @() }
+    $rawReports = Get-PropOrKey -Object $Config -Name 'Reports'
+    $reports = if ($null -ne $rawReports) { @($rawReports) } else { @() }
     if (@($reports).Count -eq 0) {
-        Write-Host "No reports available to edit." -ForegroundColor Yellow
+        Write-Host "Không có báo cáo nào để sửa." -ForegroundColor Yellow
         return
     }
 
     Action-ListReports -Config $Config
-    $choice = Read-Host "`nEnter the number of the report you want to edit [1-$($reports.Count)]"
+    $choice = Read-Host "`nNhập số thứ tự báo cáo cần sửa [1-$($reports.Count)]"
     $idx = [int]$choice - 1
     if ($idx -lt 0 -or $idx -ge @($reports).Count) { return }
 
     $rep = $reports[$idx]
-    Write-Host "`nEditing: $($rep.Name)" -ForegroundColor Cyan
-    Write-Host " [1] Edit Parameter Values (Set {Yesterday}, {Today}, or Custom)"
-    Write-Host " [2] Toggle Enabled/Disabled (Current: $(if ($rep.PSObject.Properties['Enabled'] -and $rep.Enabled -eq $false) { 'DISABLED' } else { 'ENABLED' }))"
-    Write-Host " [3] Edit Output Path Template"
-    Write-Host " [4] Re-sync parameters from Cognos server"
-    Write-Host " [0] Cancel"
-    $action = Read-Host "Choose option [0-4]"
+    $instObj = try { Get-CognosReportInstance -Config $Config -Report $rep } catch { $null }
+    $instName = if ($instObj) { $instObj.Name } else { 'Mặc định' }
+
+    $repName = Get-PropOrKey -Object $rep -Name 'Name'
+    if ([string]::IsNullOrWhiteSpace($repName)) { $repName = Get-PropOrKey -Object $rep -Name 'Source' }
+    $repEnabled = Get-PropOrKey -Object $rep -Name 'Enabled'
+    $isCurrentlyEnabled = if ($null -ne $repEnabled -and $repEnabled -eq $false) { $false } else { $true }
+
+    Write-Host "`nĐang sửa: $repName [Máy chủ: $instName]" -ForegroundColor Cyan
+    Write-Host " [1] Sửa giá trị Tham số (Thiết lập {Yesterday}, {Today}, hoặc Tùy chỉnh)"
+    Write-Host " [2] Bật/Tắt Trạng thái (Hiện tại: $(if ($isCurrentlyEnabled) { 'ĐANG BẬT' } else { 'ĐÃ TẮT' }))"
+    Write-Host " [3] Sửa Mẫu Đường dẫn Tệp"
+    Write-Host " [4] Đồng bộ lại Tham số từ máy chủ Cognos"
+    Write-Host " [5] Thay đổi Máy chủ Cognos liên kết"
+    Write-Host " [0] Hủy bỏ"
+    $action = Read-Host "Chọn chức năng [0-5]"
 
     switch ($action) {
         '1' {
-            if ($rep.PSObject.Properties['Parameters'] -and $null -ne $rep.Parameters) {
-                $paramProps = @($rep.Parameters.PSObject.Properties)
-                if ($paramProps.Count -gt 0) {
-                    Write-Host "`nEnter parameter values:" -ForegroundColor Cyan
-                    foreach ($p in $paramProps) {
-                        $p.Value = Prompt-ForParameterValue -ParamName ($p.Name) -CurrentVal ([string]$p.Value)
+            $paramsObj = Get-PropOrKey -Object $rep -Name 'Parameters'
+            if ($null -ne $paramsObj) {
+                $paramProps = @(Get-ObjectKeyValuePairs -Object $paramsObj)
+                if (@($paramProps).Count -gt 0) {
+                    Write-Host "`nNhập giá trị tham số:" -ForegroundColor Cyan
+                    foreach ($p in @($paramProps)) {
+                        $newVal = Prompt-ForParameterValue -ParamName ($p.Name) -CurrentVal ([string]$p.Value)
+                        Set-ObjectProperty -Object $paramsObj -Name $p.Name -Value $newVal
                     }
                 } else {
-                    Write-Host "This report has no parameters configured." -ForegroundColor Yellow
+                    Write-Host "Báo cáo này chưa cấu hình tham số nào." -ForegroundColor Yellow
                 }
             } else {
-                Write-Host "This report has no parameters configured." -ForegroundColor Yellow
+                Write-Host "Báo cáo này chưa cấu hình tham số nào." -ForegroundColor Yellow
             }
         }
         '2' {
-            $rep.Enabled = if ($rep.PSObject.Properties['Enabled']) { -not $rep.Enabled } else { $false }
-            Write-Host "Report status updated to: $(if ($rep.Enabled) { 'ENABLED' } else { 'DISABLED' })" -ForegroundColor Green
+            $newStatus = -not $isCurrentlyEnabled
+            Set-ObjectProperty -Object $rep -Name 'Enabled' -Value $newStatus
+            Write-Host "Trạng thái báo cáo đã đổi thành: $(if ($newStatus) { 'ĐANG BẬT' } else { 'ĐÃ TẮT' })" -ForegroundColor Green
         }
         '3' {
-            if ($rep.PSObject.Properties['Formats'] -and $null -ne $rep.Formats) {
-                foreach ($f in @($rep.Formats)) {
-                    Write-Host "`nAvailable Tokens: {Yesterday:yyyyMMdd}, {Today:yyyyMMdd}, {ReportName}, {Format}" -ForegroundColor DarkGray
-                    $newPath = Read-Host "Enter new path template for $($f.Format) [Current: $($f.OutputPath)]"
-                    if (-not [string]::IsNullOrWhiteSpace($newPath)) { $f.OutputPath = $newPath }
+            $fmtsObj = Get-PropOrKey -Object $rep -Name 'Formats'
+            if ($null -ne $fmtsObj) {
+                foreach ($f in @($fmtsObj)) {
+                    $fFormat = Get-PropOrKey -Object $f -Name 'Format'
+                    $fPath = Get-PropOrKey -Object $f -Name 'OutputPath'
+                    Write-Host "`nCác Token hỗ trợ: {Yesterday:yyyyMMdd}, {Today:yyyyMMdd}, {ReportName}, {Instance}, {Format}" -ForegroundColor DarkGray
+                    $newPath = Read-Host "Nhập mẫu đường dẫn mới cho $fFormat [Hiện tại: $fPath]"
+                    if (-not [string]::IsNullOrWhiteSpace($newPath)) {
+                        Set-ObjectProperty -Object $f -Name 'OutputPath' -Value $newPath
+                    }
                 }
             }
         }
         '4' {
-            $session = Connect-CognosSession -Config $Config
-            Write-Host "Refreshing prompts from server..." -ForegroundColor Cyan
-            $discovered = Get-ReportParameters -Context $session.Http -BaseUrl $Config.CognosBaseUrl -SourceType ($rep.SourceType) -Source ($rep.Source) -Xsrf $session.Xsrf
+            $session = Connect-CognosSession -Config $Config -Instance $instObj
+            Write-Host "Đang làm mới tham số từ máy chủ [$($instObj.Name)]..." -ForegroundColor Cyan
+            $srcType = Get-PropOrKey -Object $rep -Name 'SourceType'
+            if ([string]::IsNullOrWhiteSpace($srcType)) { $srcType = 'report' }
+            $srcVal = Get-RequiredProperty -Object $rep -Name 'Source'
+            $discovered = Get-CognosReportParameters -Context $session.Http -BaseUrl $instObj.CognosBaseUrl -SourceType $srcType -Source $srcVal -Xsrf $session.Xsrf
             
             $merged = [ordered]@{}
-            if ($rep.PSObject.Properties['Parameters'] -and $rep.Parameters) {
-                foreach ($p in $rep.Parameters.PSObject.Properties) { $merged[$p.Name] = $p.Value }
+            $paramsObj = Get-PropOrKey -Object $rep -Name 'Parameters'
+            if ($null -ne $paramsObj) {
+                foreach ($p in @(Get-ObjectKeyValuePairs -Object $paramsObj)) { $merged[$p.Name] = $p.Value }
             }
             foreach ($k in $discovered.Keys) {
+                $pInfo = $discovered[$k]
                 if (-not $merged.Contains($k)) {
-                    $merged[$k] = Prompt-ForParameterValue -ParamName $k
-                    Write-Host "  + Discovered new parameter: $k = $($merged[$k])" -ForegroundColor Green
+                    $merged[$k] = Prompt-ForParameterValue -ParamName $k -ParamInfo $pInfo
+                    Write-Host "  + Phát hiện tham số mới: $k = $($merged[$k])" -ForegroundColor Green
                 }
             }
-            $rep.Parameters = $merged
+            Set-ObjectProperty -Object $rep -Name 'Parameters' -Value $merged
+        }
+        '5' {
+            $allInstances = Get-CognosInstances -Config $Config
+            Write-Host "`nChọn máy chủ Cognos mới cho báo cáo này:" -ForegroundColor Cyan
+            $instKeys = @($allInstances.Keys)
+            for ($i = 0; $i -lt $instKeys.Count; $i++) {
+                $k = $instKeys[$i]
+                $inst = $allInstances[$k]
+                Write-Host "  [$($i + 1)] $k ($($inst.CognosBaseUrl))"
+            }
+            $choice = Read-Host "Chọn máy chủ [1-$($instKeys.Count)]"
+            if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le $instKeys.Count) {
+                $selectedKey = $instKeys[[int]$choice - 1]
+                Set-ObjectProperty -Object $rep -Name 'Instance' -Value $selectedKey
+                Write-Host "Đã liên kết báo cáo với máy chủ: $selectedKey" -ForegroundColor Green
+            }
         }
         default { return }
     }
 
-    Save-Config -Config $Config
+    Save-CognosConfig -Path $ConfigPath -Config $Config
+    Write-Host "[OK] Cấu hình đã được lưu vào: $ConfigPath" -ForegroundColor Green
 }
 
 function Action-RemoveReport {
     param($Config)
-    $reports = if ($Config.PSObject.Properties['Reports'] -and $Config.Reports) { @($Config.Reports) } else { @() }
+    $rawReports = Get-PropOrKey -Object $Config -Name 'Reports'
+    $reports = if ($null -ne $rawReports) { @($rawReports) } else { @() }
     if (@($reports).Count -eq 0) { return }
 
     Action-ListReports -Config $Config
-    $choice = Read-Host "`nEnter number of report to DELETE [1-$($reports.Count), 0 to Cancel]"
+    $choice = Read-Host "`nNhập số thứ tự báo cáo cần XÓA [1-$($reports.Count), 0 để Hủy]"
     $idx = [int]$choice - 1
     if ($idx -lt 0 -or $idx -ge @($reports).Count) { return }
 
-    $confirm = Read-Host "Are you sure you want to remove '$($reports[$idx].Name)'? (y/N)"
+    $targetRep = $reports[$idx]
+    $delName = Get-PropOrKey -Object $targetRep -Name 'Name'
+    if ([string]::IsNullOrWhiteSpace($delName)) { $delName = Get-PropOrKey -Object $targetRep -Name 'Source' }
+    $confirm = Read-Host "Bạn có chắc chắn muốn xóa '$delName' không? (y/N)"
     if ($confirm -ieq 'y') {
         $list = [System.Collections.Generic.List[object]]::new()
         for ($i = 0; $i -lt @($reports).Count; $i++) {
             if ($i -ne $idx) { $list.Add($reports[$i]) }
         }
-        $Config.Reports = $list
-        Save-Config -Config $Config
-        Write-Host "[OK] Report removed." -ForegroundColor Green
+        Set-ObjectProperty -Object $Config -Name 'Reports' -Value $list
+        Save-CognosConfig -Path $ConfigPath -Config $Config
+        Write-Host "[OK] Cấu hình đã được lưu vào: $ConfigPath" -ForegroundColor Green
+        Write-Host "[OK] Đã xóa báo cáo thành công." -ForegroundColor Green
     }
 }
 
 function Action-TestConnection {
     param($Config)
-    $session = Connect-CognosSession -Config $Config
-    Write-Host "`n[SUCCESS] Successfully connected and authenticated with Cognos Analytics!" -ForegroundColor Green
+    $allInstances = Get-CognosInstances -Config $Config
+    Write-Host "`nĐang kiểm tra kết nối tới $($allInstances.Count) máy chủ Cognos..." -ForegroundColor Cyan
+
+    $credTarget = Get-RequiredProperty -Object $Config -Name 'CredentialTarget'
+    $stored = Get-WindowsGenericCredential -Target $credTarget
+    if ($null -eq $stored) {
+        Write-Host "Chưa tìm thấy thông tin tài khoản trong Windows Credential Manager. Vui lòng nhập..." -ForegroundColor Yellow
+        $userCred = Get-Credential -Message "Tài khoản Cognos ($credTarget)"
+        if ($null -eq $userCred) { return }
+        Set-WindowsGenericCredential -Target $credTarget -Username $userCred.UserName -Password $userCred.Password
+        $stored = [pscustomobject]@{ Username = $userCred.UserName; Password = $userCred.Password }
+    }
+
+    foreach ($k in $allInstances.Keys) {
+        $inst = $allInstances[$k]
+        try {
+            Write-Host "  Kiểm tra [$k] ($($inst.CognosBaseUrl))..." -NoNewline
+            $http = New-CognosHttpClient -TimeoutMinutes 1
+            $xsrf = Invoke-CognosLogin -Context $http -CognosBaseUrl $inst.CognosBaseUrl -Namespace $inst.Namespace -Username $stored.Username -Password $stored.Password
+            $http.Client.Dispose()
+            $http.Handler.Dispose()
+            Write-Host " [THÀNH CÔNG]" -ForegroundColor Green
+        }
+        catch {
+            Write-Host " [THẤT BẠI: $($_.Exception.Message)]" -ForegroundColor Red
+        }
+    }
 }
 
 # -----------------------------------------------------------------------------
-# Main Menu Loop
+# Vòng Lặp Menu Chính (Main Menu Loop)
 # -----------------------------------------------------------------------------
 
-$config = Load-Config
+$config = Load-CognosConfig -Path $ConfigPath
 
 if ($null -eq $config) {
-    Write-Host "No configuration file found at: $ConfigPath" -ForegroundColor Yellow
-    $init = Read-Host "Would you like to initialize a new config now? (Y/n)"
+    Write-Host "Không tìm thấy tệp cấu hình tại: $ConfigPath" -ForegroundColor Yellow
+    $init = Read-Host "Bạn có muốn khởi tạo cấu hình mới ngay bây giờ không? (Y/n)"
     if ($init -ieq 'n') { exit 0 }
     $config = Action-InitConfig
 }
 
 while ($true) {
+    $instMap = Get-CognosInstances -Config $config
+    $instSummary = ($instMap.Keys | ForEach-Object { "$_ ($($instMap[$_].CognosBaseUrl))" }) -join ', '
+
     Write-Host "`n=======================================================" -ForegroundColor Cyan
-    Write-Host "           COGNOS CONFIGURATION MANAGER" -ForegroundColor Cyan
-    Write-Host " Target File: $ConfigPath" -ForegroundColor DarkGray
-    Write-Host " Server:      $($config.CognosBaseUrl) ($($config.Namespace))" -ForegroundColor DarkGray
+    Write-Host "          TRÌNH QUẢN LÝ CẤU HÌNH COGNOS" -ForegroundColor Cyan
+    Write-Host " Tệp cấu hình: $ConfigPath" -ForegroundColor DarkGray
+    Write-Host " Target xác thực: $($config.CredentialTarget)" -ForegroundColor DarkGray
+    Write-Host " Máy chủ:      $instSummary" -ForegroundColor DarkGray
     Write-Host "=======================================================" -ForegroundColor Cyan
-    Write-Host " [1] List / View all configured reports (Live Previews)"
-    Write-Host " [2] Add a new report (Auto-detect prompts & Date Presets)"
-    Write-Host " [3] Edit an existing report (Parameters / Formats / Status)"
-    Write-Host " [4] Remove a report"
-    Write-Host " [5] Test Cognos connection & authentication"
-    Write-Host " [6] Re-configure server URL / Credentials"
-    Write-Host " [0] Exit"
+    Write-Host " [1] Xem danh sách báo cáo & xem trước đường dẫn (Live Preview)"
+    Write-Host " [2] Thêm báo cáo mới (Tự động dò tìm tham số & Chọn máy chủ)"
+    Write-Host " [3] Sửa báo cáo hiện có (Tham số / Định dạng / Máy chủ)"
+    Write-Host " [4] Xóa báo cáo"
+    Write-Host " [5] Kiểm tra kết nối & Đăng nhập Cognos (Tất cả máy chủ)"
+    Write-Host " [6] Cấu hình lại Máy chủ / Tài khoản xác thực"
+    Write-Host " [7] Mở Giao diện Đồ họa (Windows Forms GUI)"
+    Write-Host " [8] Chạy tải toàn bộ báo cáo ngay (Batch Downloader)"
+    Write-Host " [0] Thoát"
     Write-Host "-------------------------------------------------------"
 
-    $opt = Read-Host "Select an option [0-6]"
+    $opt = Read-Host "Chọn chức năng [0-8]"
     switch ($opt) {
         '1' { Action-ListReports -Config $config }
-        '2' { Action-AddReport -Config $config; $config = Load-Config }
-        '3' { Action-EditReport -Config $config; $config = Load-Config }
-        '4' { Action-RemoveReport -Config $config; $config = Load-Config }
+        '2' { Action-AddReport -Config $config; $config = Load-CognosConfig -Path $ConfigPath }
+        '3' { Action-EditReport -Config $config; $config = Load-CognosConfig -Path $ConfigPath }
+        '4' { Action-RemoveReport -Config $config; $config = Load-CognosConfig -Path $ConfigPath }
         '5' { Action-TestConnection -Config $config }
         '6' { $config = Action-InitConfig }
-        '0' { Write-Host "Goodbye!"; exit 0 }
-        default { Write-Host "Invalid option." -ForegroundColor Yellow }
+        '7' { & (Join-Path $scriptDir 'CognosConfigGui.ps1') -ConfigPath $ConfigPath; $config = Load-CognosConfig -Path $ConfigPath }
+        '8' { & (Join-Path $scriptDir 'CognosReportDownloader.ps1') -ConfigPath $ConfigPath }
+        '0' { Write-Host "Tạm biệt!"; exit 0 }
+        default { Write-Host "Lựa chọn không hợp lệ." -ForegroundColor Yellow }
     }
 }
