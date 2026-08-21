@@ -1,0 +1,32 @@
+﻿{
+    "CognosBaseUrl":  "http://10.53.153.173/ibmcognos/bi",
+    "Namespace":  "BIDV",
+    "CredentialTarget":  "CognosReportAutomation:cognos.example.com",
+    "Reports":  [
+                    {
+                        "Name":  "Báo cáo nợ đến hạn, quá hạn hàng ngày",
+                        "Source":  "i54414D93B29A4D2289C4E88469871644",
+                        "SourceType":  "report",
+                        "Enabled":  true,
+                        "Parameters":  {
+                                           "p_ReportDate":  "2026-08-20",
+                                           "p_P_ngay":  "",
+                                           "p_pChonDenHan":  "",
+                                           "p_P_tungaygoc":  "",
+                                           "p_P_denngaygoc":  "",
+                                           "p_P_tungaylai":  "",
+                                           "p_P_denngaylai":  "",
+                                           "p_P_branch":  "",
+                                           "p_P_department":  "",
+                                           "p_P_class":  "",
+                                           "p_pStatus":  ""
+                                       },
+                        "Formats":  [
+                                        {
+                                            "Format":  "xlsxData",
+                                            "OutputPath":  "D:\\CognosReports\\Daily Branch Summary_{yyyyMMdd}.xlsx"
+                                        }
+                                    ]
+                    }
+                ]
+}
