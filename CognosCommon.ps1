@@ -525,25 +525,18 @@ function Invoke-CognosReportDownload {
             $prefixLen = [Math]::Min($bytes.Length, 4096)
             $sample = [Text.Encoding]::UTF8.GetString($bytes, 0, $prefixLen)
 
-            # 1. Kiểm tra lỗi nghiệp vụ từ Cognos
-            if ($sample -match 'RDS-ERR' -or $sample -match '<rds:error' -or $sample -match '<soapenv:Fault>') {
-                $fullText = [Text.Encoding]::UTF8.GetString($bytes)
-                throw "Máy chủ Cognos trả về nội dung lỗi: $fullText"
+            # 1. Kiểm tra nếu Cognos trả về trang nhập tham số Web HTML
+            if ($sample -match '<!DOCTYPE html' -or $sample -match '<html' -or $sample -match 'ccs_prompt\.xts' -or $sample -match '<document[^>]*layoutData' -or $sample -match '<promptPages>') {
+                throw "Cognos yêu cầu nhập tham số trên giao diện web (trả về trang prompt HTML). Vui lòng kiểm tra lại tên hoặc giá trị các tham số bắt buộc trong cấu hình."
             }
 
-            # 2. Kiểm tra nếu Cognos trả về trang bắt nhập tham số (Prompt Page XML)
-            if ($sample -match '<document[^>]*layoutData' -or $sample -match '<promptPages>' -or $sample -match '<p_date' -or $sample -match '<p_value') {
-                throw "Cognos yêu cầu bổ sung hoặc chỉnh sửa tham số prompt (máy chủ trả về trang prompt thay vì dữ liệu báo cáo). Vui lòng kiểm tra lại giá trị các tham số bắt buộc trong cấu hình."
-            }
-
-            # 3. Kiểm tra nếu là phiên xử lý bất đồng bộ cần theo dõi (Async Session Polling)
+            # 2. Kiểm tra nếu là phiên xử lý bất đồng bộ thực sự (Async Session Polling)
             if ($sample -match '<rds:url>(.*?)</rds:url>' -or $sample -match '<rds:asyncSession') {
-                if ($pollCount -ge $MaxAsyncPolls) {
-                    throw "Quá thời gian chờ thực thi báo cáo bất đồng bộ ($MaxAsyncPolls lần thăm dò)."
-                }
-
                 $relUrl = if ($sample -match '<rds:url>(.*?)</rds:url>') { $matches[1].Replace('&amp;', '&') } else { $null }
-                if (-not [string]::IsNullOrWhiteSpace($relUrl)) {
+                if (-not [string]::IsNullOrWhiteSpace($relUrl) -and $relUrl -notmatch 'ccs_prompt\.xts') {
+                    if ($pollCount -ge $MaxAsyncPolls) {
+                        throw "Quá thời gian chờ thực thi báo cáo bất đồng bộ ($MaxAsyncPolls lần thăm dò)."
+                    }
                     $nextUri = [uri]::new($currentUri, $relUrl)
                     $pollCount++
                     Write-Log "Đang theo dõi phiên tải báo cáo bất đồng bộ (#$pollCount): $nextUri" 'DEBUG'
@@ -551,6 +544,12 @@ function Invoke-CognosReportDownload {
                     $currentUri = $nextUri
                     continue
                 }
+            }
+
+            # 3. Kiểm tra lỗi nghiệp vụ từ Cognos
+            if ($sample -match 'RDS-ERR' -or $sample -match '<rds:error' -or $sample -match '<soapenv:Fault>') {
+                $fullText = [Text.Encoding]::UTF8.GetString($bytes)
+                throw "Máy chủ Cognos trả về nội dung lỗi: $fullText"
             }
 
             # 4. Nếu là tệp XML nhưng định dạng yêu cầu không phải XML/spreadsheetML
@@ -635,7 +634,7 @@ function Get-CognosReportParameters {
                 }
 
                 if ([string]::IsNullOrWhiteSpace($rawName)) { continue }
-                $paramKey = if ($rawName.StartsWith('p_')) { $rawName } else { "p_$rawName" }
+                $paramKey = "p_$rawName"
 
                 # Bỏ qua nếu đã tồn tại và đã có choices
                 if ($params.Contains($paramKey) -and $params[$paramKey].Choices.Length -gt 0) {
@@ -795,7 +794,7 @@ function Get-CognosReportParameters {
                 foreach ($node in $pnodes) {
                     $rawName = $node.InnerText.Trim()
                     if (-not [string]::IsNullOrWhiteSpace($rawName)) {
-                        $paramKey = if ($rawName.StartsWith('p_')) { $rawName } else { "p_$rawName" }
+                        $paramKey = "p_$rawName"
                         if (-not $params.Contains($paramKey)) {
                             $defaultVal = if ($paramKey -match 'date|ngay|time|denhan|quahan') { '{Yesterday}' } else { '' }
                             $params[$paramKey] = [pscustomobject]@{
@@ -995,14 +994,13 @@ function Get-ReportDefinitionUrl {
 
     $parts = New-Object 'System.Collections.Generic.List[string]'
     $parts.Add('v=3')
-    $parts.Add('prompt=false')
-    $parts.Add('async=off')
+    $parts.Add('prompt=true')
 
     # Tính toán giá trị dynamic token (VD: {Yesterday}) trong tham số prompt
     $paramsObj = Get-PropOrKey -Object $Report -Name 'Parameters'
     if ($null -ne $paramsObj) {
         foreach ($pair in @(Get-ObjectKeyValuePairs -Object $paramsObj)) {
-            $paramName = if ($pair.Name.StartsWith('p_')) { $pair.Name } else { "p_$($pair.Name)" }
+            $paramName = $pair.Name
             $val = $pair.Value
             if ($null -ne $val) {
                 if ($val -is [System.Collections.IEnumerable] -and -not ($val -is [string])) {

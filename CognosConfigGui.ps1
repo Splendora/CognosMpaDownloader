@@ -195,9 +195,10 @@ $splitReports.Panel1.Controls.Add($panelReportsLeft)
 
 $pnlReportButtons = New-Object System.Windows.Forms.FlowLayoutPanel
 $pnlReportButtons.Dock = [System.Windows.Forms.DockStyle]::Top
-$pnlReportButtons.Height = 42
+$pnlReportButtons.AutoSize = $true
+$pnlReportButtons.MinimumSize = New-Object System.Drawing.Size(0, 42)
 $pnlReportButtons.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
-$pnlReportButtons.WrapContents = $false
+$pnlReportButtons.WrapContents = $true
 $panelReportsLeft.Controls.Add($pnlReportButtons)
 
 $btnAddReport = New-Object System.Windows.Forms.Button -Property @{ Text = "+ Thêm Báo cáo"; Size = New-Object System.Drawing.Size(105, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }

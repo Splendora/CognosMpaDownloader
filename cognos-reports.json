@@ -1,4 +1,4 @@
-{
+﻿{
     "CredentialTarget":  "COGNOS",
     "DefaultInstance":  "ODS",
     "Instances":  {
@@ -69,16 +69,10 @@
                         "SourceType":  "report",
                         "Enabled":  true,
                         "Parameters":  {
-                                           "p_p_cn_xu_ly":  "121000, 121150, 121151, 121152, 121153, 121154, 121155",
-                                           "p_p_date":  "{Yesterday}",
-                                           "p_cn_xu_ly":  "121000, 121150, 121151, 121152, 121153, 121154, 121155",
-                                           "p_date":  "{Yesterday}"
+                                           "p_p_cn_xu_ly":  "121000",
+                                           "p_p_date":  "{Yesterday}"
                                        },
                         "Formats":  [
-                                        {
-                                            "Format":  "PDF",
-                                            "OutputPath":  "D:\\CognosReports\\{Yesterday:yyyyMMdd}_{ReportName}.pdf"
-                                        },
                                         {
                                             "Format":  "xlsxData",
                                             "OutputPath":  "D:\\CognosReports\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
@@ -92,9 +86,9 @@
                         "SourceType":  "report",
                         "Enabled":  true,
                         "Parameters":  {
-                                           "p_Parameter1":  "{Yesterday} 00:00:00",
-                                           "p_Parameter2":  "121000, 121150, 121151, 121152, 121153, 121154, 121155",
-                                           "p_Parameter7":  "MS600B05, MS600B10, MS600B15, CS202B20, MS600B25, MS600B30, MS600B35, MS600B99, CS202C00, CS202C05, CS202C10, CS202C15, CS200C99, GT400G00, GT405G05, GT406G10, GT408G15, OT900I05, AB101M00, AB101M05, AB102M10, AB109M15, AB111M20, PT704P00, PT701P05, PT700P10, PT707P15, OT900R00, OT900R05, DC308R10, OT900R15, OT900R20, OT900R25, OT900R30, MS602S05, MS602S10, MS601T05, MS601T10, AB110X10, OT900X15, AB110X05, OT900Z99",
+                                           "p_Parameter1":  "{Yesterday}T00:00:00",
+                                           "p_Parameter2":  "121000",
+                                           "p_Parameter7":  "MS600B05",
                                            "p_Parameter5":  "",
                                            "p_Parameter6":  ""
                                        },
@@ -102,10 +96,6 @@
                                         {
                                             "Format":  "xlsxData",
                                             "OutputPath":  "D:\\CognosReports\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
-                                        },
-                                        {
-                                            "Format":  "spreadsheetML",
-                                            "OutputPath":  "D:\\CognosReports\\{Yesterday:yyyyMMdd}_{ReportName}.xml"
                                         }
                                     ]
                     }
