@@ -49,6 +49,8 @@ function Load-AppConfig {
     if ($null -eq $script:CurrentConfig) {
         throw "Không thể phân tích định dạng JSON của tệp: $ConfigPath"
     }
+    $logCfg = if ($script:CurrentConfig.PSObject.Properties['Logging']) { $script:CurrentConfig.Logging } else { $null }
+    Initialize-CognosLogging -LoggingConfig $logCfg -BaseDirectory $scriptDir
 }
 
 Load-AppConfig
@@ -85,11 +87,12 @@ $topPanel.Controls.Add($pnlTopButtons)
 
 $btnSetCred = New-Object System.Windows.Forms.Button
 $btnSetCred.Text = "Tài khoản Đăng nhập"
-$btnSetCred.Size = New-Object System.Drawing.Size(145, 32)
+$btnSetCred.Size = New-Object System.Drawing.Size(155, 32)
 $btnSetCred.Margin = New-Object System.Windows.Forms.Padding(8, 0, 0, 0)
-$btnSetCred.BackColor = [System.Drawing.Color]::FromArgb(240, 242, 245)
+$btnSetCred.BackColor = [System.Drawing.Color]::White
+$btnSetCred.ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67)
 $btnSetCred.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$btnSetCred.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(215, 218, 224)
+$btnSetCred.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
 $pnlTopButtons.Controls.Add($btnSetCred)
 
 $btnTestAll = New-Object System.Windows.Forms.Button
@@ -104,7 +107,7 @@ $pnlTopButtons.Controls.Add($btnTestAll)
 
 $btnSave = New-Object System.Windows.Forms.Button
 $btnSave.Text = "Lưu Cấu hình"
-$btnSave.Size = New-Object System.Drawing.Size(110, 32)
+$btnSave.Size = New-Object System.Drawing.Size(115, 32)
 $btnSave.Margin = New-Object System.Windows.Forms.Padding(8, 0, 0, 0)
 $btnSave.BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
 $btnSave.ForeColor = [System.Drawing.Color]::White
@@ -169,10 +172,12 @@ $tabControl.Padding = New-Object System.Drawing.Point(14, 8)
 
 $tabReports   = New-Object System.Windows.Forms.TabPage -Property @{ Text = "Quản lý Báo cáo"; Padding = New-Object System.Windows.Forms.Padding(12) }
 $tabInstances = New-Object System.Windows.Forms.TabPage -Property @{ Text = "Máy chủ Cognos"; Padding = New-Object System.Windows.Forms.Padding(12) }
+$tabSchedule  = New-Object System.Windows.Forms.TabPage -Property @{ Text = "Lập Lịch Tự Động"; Padding = New-Object System.Windows.Forms.Padding(16) }
 $tabSettings  = New-Object System.Windows.Forms.TabPage -Property @{ Text = "Nhật ký & Cài đặt"; Padding = New-Object System.Windows.Forms.Padding(16) }
 
 $tabControl.Controls.Add($tabReports)
 $tabControl.Controls.Add($tabInstances)
+$tabControl.Controls.Add($tabSchedule)
 $tabControl.Controls.Add($tabSettings)
 
 $mainForm.Controls.Add($tabControl)
@@ -201,11 +206,19 @@ $pnlReportButtons.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRi
 $pnlReportButtons.WrapContents = $true
 $panelReportsLeft.Controls.Add($pnlReportButtons)
 
-$btnAddReport = New-Object System.Windows.Forms.Button -Property @{ Text = "+ Thêm Báo cáo"; Size = New-Object System.Drawing.Size(105, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }
-$btnEditReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Sửa Báo cáo"; Size = New-Object System.Drawing.Size(95, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }
-$btnDeleteReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Xóa"; Size = New-Object System.Drawing.Size(60, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }
-$btnRunReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Tải Mục Chọn"; Size = New-Object System.Drawing.Size(100, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }
-$btnRunAllReports = New-Object System.Windows.Forms.Button -Property @{ Text = "Tải Tất Cả Báo Cáo"; Size = New-Object System.Drawing.Size(140, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0); BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254); ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnAddReport = New-Object System.Windows.Forms.Button -Property @{ Text = "+ Thêm Báo cáo"; Size = New-Object System.Drawing.Size(120, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0); BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232); ForeColor = [System.Drawing.Color]::White; FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnAddReport.FlatAppearance.BorderSize = 0
+
+$btnEditReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Sửa Báo cáo"; Size = New-Object System.Drawing.Size(100, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnEditReport.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+$btnDeleteReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Xóa"; Size = New-Object System.Drawing.Size(65, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(217, 48, 37); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnDeleteReport.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(245, 198, 203)
+
+$btnRunReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Tải Mục Chọn"; Size = New-Object System.Drawing.Size(110, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(19, 115, 51); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnRunReport.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(206, 234, 214)
+
+$btnRunAllReports = New-Object System.Windows.Forms.Button -Property @{ Text = "Tải Tất Cả Báo Cáo"; Size = New-Object System.Drawing.Size(150, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0); BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254); ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
 $btnRunAllReports.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(190, 215, 250)
 
 $pnlReportButtons.Controls.AddRange(@($btnAddReport, $btnEditReport, $btnDeleteReport, $btnRunReport, $btnRunAllReports))
@@ -375,10 +388,17 @@ $pnlInstButtons.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRigh
 $pnlInstButtons.WrapContents = $false
 $panelInst.Controls.Add($pnlInstButtons)
 
-$btnAddInst = New-Object System.Windows.Forms.Button -Property @{ Text = "+ Thêm Máy chủ"; Size = New-Object System.Drawing.Size(115, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }
-$btnEditInst = New-Object System.Windows.Forms.Button -Property @{ Text = "Sửa Máy chủ"; Size = New-Object System.Drawing.Size(105, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }
-$btnDeleteInst = New-Object System.Windows.Forms.Button -Property @{ Text = "Xóa"; Size = New-Object System.Drawing.Size(70, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }
-$btnSetDefaultInst = New-Object System.Windows.Forms.Button -Property @{ Text = "Đặt làm Mặc định"; Size = New-Object System.Drawing.Size(130, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0) }
+$btnAddInst = New-Object System.Windows.Forms.Button -Property @{ Text = "+ Thêm Máy chủ"; Size = New-Object System.Drawing.Size(120, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0); BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232); ForeColor = [System.Drawing.Color]::White; FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnAddInst.FlatAppearance.BorderSize = 0
+
+$btnEditInst = New-Object System.Windows.Forms.Button -Property @{ Text = "Sửa Máy chủ"; Size = New-Object System.Drawing.Size(105, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnEditInst.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+$btnDeleteInst = New-Object System.Windows.Forms.Button -Property @{ Text = "Xóa"; Size = New-Object System.Drawing.Size(65, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(217, 48, 37); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnDeleteInst.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(245, 198, 203)
+
+$btnSetDefaultInst = New-Object System.Windows.Forms.Button -Property @{ Text = "Đặt làm Mặc định"; Size = New-Object System.Drawing.Size(140, 32); Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0); BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254); ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnSetDefaultInst.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(190, 215, 250)
 
 $pnlInstButtons.Controls.AddRange(@($btnAddInst, $btnEditInst, $btnDeleteInst, $btnSetDefaultInst))
 
@@ -418,15 +438,6 @@ function Refresh-InstancesGrid {
     }
 }
 
-# =============================================================================
-# TAB 3: NHẬT KÝ & CÀI ĐẶT
-# =============================================================================
-
-$panelSettings = New-Object System.Windows.Forms.Panel
-$panelSettings.Dock = [System.Windows.Forms.DockStyle]::Fill
-$panelSettings.AutoScroll = $true
-$tabSettings.Controls.Add($panelSettings)
-
 # Hàm trợ giúp tạo dòng cấu hình chuẩn
 function New-SettingRowPanel {
     param([string]$LabelText, [System.Windows.Forms.Control]$InputControl, [System.Windows.Forms.Control]$ExtraControl = $null)
@@ -454,17 +465,271 @@ function New-SettingRowPanel {
     return $row
 }
 
-# Thẻ 1: Cấu hình Tài khoản Xác thực
+# =============================================================================
+# TAB 3: LẬP LỊCH TỰ ĐỘNG (WINDOWS TASK SCHEDULER)
+# =============================================================================
+
+$panelSchedule = New-Object System.Windows.Forms.Panel
+$panelSchedule.Dock = [System.Windows.Forms.DockStyle]::Fill
+$panelSchedule.AutoScroll = $true
+$tabSchedule.Controls.Add($panelSchedule)
+
+# Thẻ 1: Trạng thái Lịch hiện tại
+$pnlSchedStatusCard = New-Object System.Windows.Forms.Panel
+$pnlSchedStatusCard.Dock = [System.Windows.Forms.DockStyle]::Top
+$pnlSchedStatusCard.Height = 160
+$pnlSchedStatusCard.BackColor = [System.Drawing.Color]::FromArgb(250, 252, 255)
+$pnlSchedStatusCard.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$pnlSchedStatusCard.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
+$panelSchedule.Controls.Add($pnlSchedStatusCard)
+
+$lblSchedStatusHeader = New-Object System.Windows.Forms.Label
+$lblSchedStatusHeader.Text = "Trạng thái Lập Lịch Tự Động (Windows Task Scheduler)"
+$lblSchedStatusHeader.Dock = [System.Windows.Forms.DockStyle]::Top
+$lblSchedStatusHeader.Height = 26
+$lblSchedStatusHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
+$lblSchedStatusHeader.ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
+$pnlSchedStatusCard.Controls.Add($lblSchedStatusHeader)
+
+$lblSchedState = New-Object System.Windows.Forms.Label -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 24; Font = New-Object System.Drawing.Font("Segoe UI", 9) }
+$lblSchedLastRun = New-Object System.Windows.Forms.Label -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 24; Font = New-Object System.Drawing.Font("Segoe UI", 9) }
+$lblSchedNextRun = New-Object System.Windows.Forms.Label -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 24; Font = New-Object System.Drawing.Font("Segoe UI", 9) }
+$lblSchedAction = New-Object System.Windows.Forms.Label -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 24; Font = New-Object System.Drawing.Font("Segoe UI", 9); ForeColor = [System.Drawing.Color]::FromArgb(90, 95, 100) }
+
+$pnlSchedStatusCard.Controls.Add($lblSchedAction)
+$pnlSchedStatusCard.Controls.Add($lblSchedNextRun)
+$pnlSchedStatusCard.Controls.Add($lblSchedLastRun)
+$pnlSchedStatusCard.Controls.Add($lblSchedState)
+$lblSchedState.BringToFront()
+$lblSchedLastRun.BringToFront()
+$lblSchedNextRun.BringToFront()
+$lblSchedAction.BringToFront()
+
+# Khoảng đệm
+$pnlSchedSpacer = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 16 }
+$panelSchedule.Controls.Add($pnlSchedSpacer)
+$pnlSchedSpacer.BringToFront()
+
+# Thẻ 2: Cài đặt Lịch mới
+$pnlSchedConfigCard = New-Object System.Windows.Forms.Panel
+$pnlSchedConfigCard.Dock = [System.Windows.Forms.DockStyle]::Top
+$pnlSchedConfigCard.Height = 220
+$pnlSchedConfigCard.BackColor = [System.Drawing.Color]::FromArgb(250, 252, 255)
+$pnlSchedConfigCard.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$pnlSchedConfigCard.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
+$panelSchedule.Controls.Add($pnlSchedConfigCard)
+$pnlSchedConfigCard.BringToFront()
+
+$lblSchedConfigHeader = New-Object System.Windows.Forms.Label
+$lblSchedConfigHeader.Text = "Cài đặt & Lập Lịch Chạy Định Kỳ"
+$lblSchedConfigHeader.Dock = [System.Windows.Forms.DockStyle]::Top
+$lblSchedConfigHeader.Height = 26
+$lblSchedConfigHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
+$lblSchedConfigHeader.ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
+$pnlSchedConfigCard.Controls.Add($lblSchedConfigHeader)
+
+# Dòng 1: Tên tác vụ
+$txtTaskName = New-Object System.Windows.Forms.TextBox -Property @{ Text = "CognosReportDownloader" }
+$rowTaskName = New-SettingRowPanel -LabelText "Tên Tác vụ (Task Name):" -InputControl $txtTaskName
+$pnlSchedConfigCard.Controls.Add($rowTaskName)
+$rowTaskName.BringToFront()
+
+# Dòng 2: Tần suất chạy
+$cmbSchedFreq = New-Object System.Windows.Forms.ComboBox -Property @{ DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList }
+[void]$cmbSchedFreq.Items.AddRange(@(
+    'Hàng ngày (Daily)',
+    'Các ngày làm việc (Thứ 2 - Thứ 6)',
+    'Hàng tuần (Weekly - Thứ 2)',
+    'Hàng giờ (Hourly)'
+))
+$cmbSchedFreq.SelectedIndex = 0
+$rowSchedFreq = New-SettingRowPanel -LabelText "Tần suất thực thi:" -InputControl $cmbSchedFreq
+$pnlSchedConfigCard.Controls.Add($rowSchedFreq)
+$rowSchedFreq.BringToFront()
+
+# Dòng 3: Giờ bắt đầu
+$txtSchedTime = New-Object System.Windows.Forms.TextBox -Property @{ Text = "06:00" }
+$rowSchedTime = New-SettingRowPanel -LabelText "Giờ bắt đầu chạy (HH:mm):" -InputControl $txtSchedTime
+$pnlSchedConfigCard.Controls.Add($rowSchedTime)
+$rowSchedTime.BringToFront()
+
+# Dòng 4: Quyền thực thi
+$pnlSchedElevated = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 32 }
+$chkSchedElevated = New-Object System.Windows.Forms.CheckBox -Property @{ Text = "Chạy với quyền Administrator cao nhất (Highest Privileges)"; Dock = [System.Windows.Forms.DockStyle]::Fill; Checked = $false }
+$pnlSchedElevated.Controls.Add($chkSchedElevated)
+$pnlSchedConfigCard.Controls.Add($pnlSchedElevated)
+$pnlSchedElevated.BringToFront()
+
+# Khoảng đệm
+$pnlSchedSpacer2 = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 16 }
+$panelSchedule.Controls.Add($pnlSchedSpacer2)
+$pnlSchedSpacer2.BringToFront()
+
+# Thanh nút điều khiển Lịch
+$pnlSchedButtons = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 46; FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight; WrapContents = $false }
+$btnSetSchedule = New-Object System.Windows.Forms.Button -Property @{ Text = "Lưu & Kích hoạt Lịch"; Size = New-Object System.Drawing.Size(160, 34); BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232); ForeColor = [System.Drawing.Color]::White; FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0) }
+$btnSetSchedule.FlatAppearance.BorderSize = 0
+
+$btnRunScheduleNow = New-Object System.Windows.Forms.Button -Property @{ Text = "Chạy Thử Tác Vụ Ngay"; Size = New-Object System.Drawing.Size(160, 34); BackColor = [System.Drawing.Color]::FromArgb(230, 244, 234); ForeColor = [System.Drawing.Color]::FromArgb(19, 115, 51); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0) }
+$btnRunScheduleNow.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(206, 234, 214)
+
+$btnOpenTaskScheduler = New-Object System.Windows.Forms.Button -Property @{ Text = "Mở Task Scheduler GUI"; Size = New-Object System.Drawing.Size(160, 34); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0) }
+$btnOpenTaskScheduler.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+$btnDeleteSchedule = New-Object System.Windows.Forms.Button -Property @{ Text = "Xóa Lịch Tác Vụ"; Size = New-Object System.Drawing.Size(130, 34); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(217, 48, 37); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0) }
+$btnDeleteSchedule.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(245, 198, 203)
+
+$btnRefreshSchedule = New-Object System.Windows.Forms.Button -Property @{ Text = "Làm mới"; Size = New-Object System.Drawing.Size(85, 34); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+$btnRefreshSchedule.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+$pnlSchedButtons.Controls.AddRange(@($btnSetSchedule, $btnRunScheduleNow, $btnOpenTaskScheduler, $btnDeleteSchedule, $btnRefreshSchedule))
+$panelSchedule.Controls.Add($pnlSchedButtons)
+$pnlSchedButtons.BringToFront()
+
+function Refresh-ScheduleTab {
+    $schedCfg = Get-CognosSchedulingConfig -Config $script:CurrentConfig
+    $tName = $txtTaskName.Text.Trim()
+    if (-not $tName) {
+        $tName = $schedCfg.TaskName
+        $txtTaskName.Text = $tName
+    }
+    $tInfo = Get-CognosScheduledTask -TaskName $tName
+
+    if ($null -ne $tInfo -and $tInfo.Exists) {
+        $lblSchedState.Text = "Trạng thái: " + $tInfo.State + " (Loại lịch: " + $tInfo.ScheduleType + ", Giờ chạy: " + $tInfo.StartTime + ")"
+        $lblSchedState.ForeColor = [System.Drawing.Color]::FromArgb(19, 115, 51)
+        
+        $lastRunStr = if ($tInfo.LastRunTime) { $tInfo.LastRunTime.ToString("yyyy-MM-dd HH:mm:ss") } else { "Chưa chạy" }
+        $lblSchedLastRun.Text = "Lần chạy gần nhất: $lastRunStr (Mã kết quả: $($tInfo.LastTaskResult))"
+        
+        $nextRunStr = if ($tInfo.NextRunTime) { $tInfo.NextRunTime.ToString("yyyy-MM-dd HH:mm:ss") } else { "Không xác định" }
+        $lblSchedNextRun.Text = "Lần chạy tiếp theo: $nextRunStr"
+
+        $lblSchedAction.Text = "Đường dẫn thực thi: powershell.exe -> CognosReportDownloader.ps1"
+        $btnDeleteSchedule.Enabled = $true
+        $btnRunScheduleNow.Enabled = $true
+    } else {
+        $lblSchedState.Text = "Trạng thái: Chưa thiết lập lịch tự động cho '$tName'"
+        $lblSchedState.ForeColor = [System.Drawing.Color]::FromArgb(128, 134, 139)
+        $lblSchedLastRun.Text = "Lần chạy gần nhất: --"
+        $lblSchedNextRun.Text = "Lần chạy tiếp theo: --"
+        $lblSchedAction.Text = "Bấm 'Lưu & Kích hoạt Lịch' để tự động tạo Task trong Windows Task Scheduler."
+        $btnDeleteSchedule.Enabled = $false
+        $btnRunScheduleNow.Enabled = $false
+    }
+}
+
+$btnSetSchedule.add_Click({
+    $tName = $txtTaskName.Text.Trim()
+    if (-not $tName) {
+        [System.Windows.Forms.MessageBox]::Show("Vui lòng nhập tên tác vụ.", "Thiếu Tên Tác Vụ", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+        return
+    }
+
+    $timeStr = $txtSchedTime.Text.Trim()
+    if ($timeStr -notmatch '^\d{1,2}:\d{2}$') {
+        [System.Windows.Forms.MessageBox]::Show("Giờ chạy không đúng định dạng HH:mm (VD: 06:00, 07:30).", "Sai Định Dạng Giờ", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+        return
+    }
+
+    $freq = switch ($cmbSchedFreq.SelectedIndex) {
+        0 { 'DAILY' }
+        1 { 'WEEKDAY' }
+        2 { 'WEEKLY' }
+        3 { 'HOURLY' }
+        default { 'DAILY' }
+    }
+
+    try {
+        $scriptPath = Join-Path -Path $PSScriptRoot -ChildPath 'CognosReportDownloader.ps1'
+        Set-CognosScheduledTask `
+            -TaskName $tName `
+            -ScriptPath $scriptPath `
+            -ConfigPath $ConfigPath `
+            -ScheduleType $freq `
+            -StartTime $timeStr `
+            -RunElevated $chkSchedElevated.Checked | Out-Null
+
+        # Lưu cấu hình lịch vào cognos-reports.json
+        Set-ObjectProperty -Object $script:CurrentConfig -Name 'Scheduling' -Value ([ordered]@{
+            TaskName     = $tName
+            ScheduleType = $freq
+            StartTime    = $timeStr
+            RunElevated  = $chkSchedElevated.Checked
+        })
+        Save-CognosConfig -Path $ConfigPath -Config $script:CurrentConfig
+
+        Gui-Log "Đã thiết lập thành công lịch tự động '$tName' ($freq lúc $timeStr)." 'OK'
+        Refresh-ScheduleTab
+        [System.Windows.Forms.MessageBox]::Show("Đã cài đặt thành công lịch tác vụ Windows Task Scheduler!`n`n- Tên: $tName`n- Tần suất: $freq`n- Giờ chạy: $timeStr`n`nCấu hình đã được lưu vào tệp JSON.", "Lập Lịch Thành Công", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+    }
+    catch {
+        Gui-Log "Lập lịch thất bại: $($_.Exception.Message)" 'ERROR'
+        [System.Windows.Forms.MessageBox]::Show("Lập lịch thất bại: $($_.Exception.Message)", "Lỗi Lập Lịch", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+    }
+})
+
+$btnRunScheduleNow.add_Click({
+    $tName = $txtTaskName.Text.Trim()
+    try {
+        Start-CognosScheduledTask -TaskName $tName | Out-Null
+        Gui-Log "Đã gửi tín hiệu chạy tác vụ '$tName'." 'OK'
+        [System.Windows.Forms.MessageBox]::Show("Tác vụ '$tName' đã được kích hoạt chạy trong nền bởi Windows Task Scheduler.", "Đã Kích Hoạt", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        Refresh-ScheduleTab
+    }
+    catch {
+        Gui-Log "Kích hoạt tác vụ thất bại: $($_.Exception.Message)" 'ERROR'
+        [System.Windows.Forms.MessageBox]::Show("Kích hoạt tác vụ thất bại: $($_.Exception.Message)", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+    }
+})
+
+$btnOpenTaskScheduler.add_Click({
+    try {
+        Start-Process "taskschd.msc"
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("Không thể mở Task Scheduler: $($_.Exception.Message)", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+    }
+})
+
+$btnDeleteSchedule.add_Click({
+    $tName = $txtTaskName.Text.Trim()
+    $confirm = [System.Windows.Forms.MessageBox]::Show("Bạn có chắc chắn muốn xóa lịch tác vụ '$tName' không?", "Xác nhận Xóa Lịch", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
+    if ($confirm -eq [System.Windows.Forms.DialogResult]::Yes) {
+        try {
+            Remove-CognosScheduledTask -TaskName $tName | Out-Null
+            Gui-Log "Đã xóa lịch tác vụ '$tName'." 'OK'
+            Refresh-ScheduleTab
+            [System.Windows.Forms.MessageBox]::Show("Đã xóa lịch tác vụ '$tName' khỏi Windows Task Scheduler.", "Đã Xóa", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        }
+        catch {
+            Gui-Log "Xóa lịch thất bại: $($_.Exception.Message)" 'ERROR'
+            [System.Windows.Forms.MessageBox]::Show("Xóa lịch thất bại: $($_.Exception.Message)", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        }
+    }
+})
+
+$btnRefreshSchedule.add_Click({ Refresh-ScheduleTab })
+
+# =============================================================================
+# TAB 4: NHẬT KÝ & CÀI ĐẶT
+# =============================================================================
+
+$panelSettings = New-Object System.Windows.Forms.Panel
+$panelSettings.Dock = [System.Windows.Forms.DockStyle]::Fill
+$panelSettings.AutoScroll = $true
+$tabSettings.Controls.Add($panelSettings)
+
+# Thẻ 1: Cấu hình Tài khoản & Mạng HTTP
 $pnlCredCard = New-Object System.Windows.Forms.Panel
 $pnlCredCard.Dock = [System.Windows.Forms.DockStyle]::Top
-$pnlCredCard.Height = 110
+$pnlCredCard.Height = 150
 $pnlCredCard.BackColor = [System.Drawing.Color]::FromArgb(250, 252, 255)
 $pnlCredCard.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 $pnlCredCard.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
 $panelSettings.Controls.Add($pnlCredCard)
 
 $lblCredCardHeader = New-Object System.Windows.Forms.Label
-$lblCredCardHeader.Text = "Cấu hình Tài khoản Xác thực (Windows Credential)"
+$lblCredCardHeader.Text = "Cấu hình Tài khoản Xác thực & Mạng HTTP"
 $lblCredCardHeader.Dock = [System.Windows.Forms.DockStyle]::Top
 $lblCredCardHeader.Height = 24
 $lblCredCardHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
@@ -478,15 +743,72 @@ $rowCred = New-SettingRowPanel -LabelText "Tên Target xác thực:" -InputContr
 $pnlCredCard.Controls.Add($rowCred)
 $rowCred.BringToFront()
 
-# Khoảng đệm giữa các thẻ
-$pnlSpacer = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 16 }
-$panelSettings.Controls.Add($pnlSpacer)
-$pnlSpacer.BringToFront()
+$numHttpTimeout = New-Object System.Windows.Forms.NumericUpDown -Property @{ Width = 80; Minimum = 1; Maximum = 120; Value = 10 }
+$pnlTimeoutCont = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill }
+$pnlTimeoutCont.Controls.Add($numHttpTimeout)
+$rowTimeout = New-SettingRowPanel -LabelText "Thời gian chờ HTTP (Phút):" -InputControl $pnlTimeoutCont
+$pnlCredCard.Controls.Add($rowTimeout)
+$rowTimeout.BringToFront()
 
-# Thẻ 2: Cấu hình Nhật ký & Audit
+# Khoảng đệm 1
+$pnlSpacer1 = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 14 }
+$panelSettings.Controls.Add($pnlSpacer1)
+$pnlSpacer1.BringToFront()
+
+# Thẻ 2: Cơ chế Thử lại Tự động (Retry Policy)
+$pnlRetryCard = New-Object System.Windows.Forms.Panel
+$pnlRetryCard.Dock = [System.Windows.Forms.DockStyle]::Top
+$pnlRetryCard.Height = 200
+$pnlRetryCard.BackColor = [System.Drawing.Color]::FromArgb(250, 252, 255)
+$pnlRetryCard.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$pnlRetryCard.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
+$panelSettings.Controls.Add($pnlRetryCard)
+$pnlRetryCard.BringToFront()
+
+$lblRetryHeader = New-Object System.Windows.Forms.Label
+$lblRetryHeader.Text = "Cơ chế Thử lại Tự động & Khả năng Phục hồi (Retry with Backoff)"
+$lblRetryHeader.Dock = [System.Windows.Forms.DockStyle]::Top
+$lblRetryHeader.Height = 24
+$lblRetryHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
+$lblRetryHeader.ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
+$pnlRetryCard.Controls.Add($lblRetryHeader)
+
+$pnlRetryChk = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 30 }
+$chkRetryEnabled = New-Object System.Windows.Forms.CheckBox -Property @{ Text = "Kích hoạt tự động thử lại khi gặp lỗi mạng / hàng đợi Cognos bận"; Dock = [System.Windows.Forms.DockStyle]::Fill; Checked = $true }
+$pnlRetryChk.Controls.Add($chkRetryEnabled)
+$pnlRetryCard.Controls.Add($pnlRetryChk)
+$pnlRetryChk.BringToFront()
+
+$numMaxRetries = New-Object System.Windows.Forms.NumericUpDown -Property @{ Width = 70; Minimum = 1; Maximum = 10; Value = 3 }
+$pnlMaxRetCont = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill }
+$pnlMaxRetCont.Controls.Add($numMaxRetries)
+$rowMaxRet = New-SettingRowPanel -LabelText "Số lần thử lại tối đa:" -InputControl $pnlMaxRetCont
+$pnlRetryCard.Controls.Add($rowMaxRet)
+$rowMaxRet.BringToFront()
+
+$numRetryDelay = New-Object System.Windows.Forms.NumericUpDown -Property @{ Width = 70; Minimum = 1; Maximum = 60; Value = 5 }
+$pnlDelayCont = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill }
+$pnlDelayCont.Controls.Add($numRetryDelay)
+$rowDelay = New-SettingRowPanel -LabelText "Thời gian chờ ban đầu (Giây):" -InputControl $pnlDelayCont
+$pnlRetryCard.Controls.Add($rowDelay)
+$rowDelay.BringToFront()
+
+$numBackoff = New-Object System.Windows.Forms.NumericUpDown -Property @{ Width = 70; Minimum = 1.0; Maximum = 5.0; Value = 2.0; DecimalPlaces = 1; Increment = 0.5 }
+$pnlBackoffCont = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill }
+$pnlBackoffCont.Controls.Add($numBackoff)
+$rowBackoff = New-SettingRowPanel -LabelText "Hệ số nhân độ trễ (Backoff):" -InputControl $pnlBackoffCont
+$pnlRetryCard.Controls.Add($rowBackoff)
+$rowBackoff.BringToFront()
+
+# Khoảng đệm 2
+$pnlSpacer2 = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 14 }
+$panelSettings.Controls.Add($pnlSpacer2)
+$pnlSpacer2.BringToFront()
+
+# Thẻ 3: Cấu hình Nhật ký, Audit & Summary JSON
 $pnlLogCard = New-Object System.Windows.Forms.Panel
 $pnlLogCard.Dock = [System.Windows.Forms.DockStyle]::Top
-$pnlLogCard.Height = 250
+$pnlLogCard.Height = 360
 $pnlLogCard.BackColor = [System.Drawing.Color]::FromArgb(250, 252, 255)
 $pnlLogCard.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 $pnlLogCard.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
@@ -494,25 +816,27 @@ $panelSettings.Controls.Add($pnlLogCard)
 $pnlLogCard.BringToFront()
 
 $lblLogCardHeader = New-Object System.Windows.Forms.Label
-$lblLogCardHeader.Text = "Cấu hình Nhật ký & Giám sát Thực thi"
+$lblLogCardHeader.Text = "Cấu hình Nhật ký, Giám sát Audit & Báo cáo Tóm tắt"
 $lblLogCardHeader.Dock = [System.Windows.Forms.DockStyle]::Top
 $lblLogCardHeader.Height = 24
 $lblLogCardHeader.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
 $lblLogCardHeader.ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
 $pnlLogCard.Controls.Add($lblLogCardHeader)
 
-# Dòng: Đường dẫn Audit CSV
-$txtAuditPath = New-Object System.Windows.Forms.TextBox
-$rowAuditPath = New-SettingRowPanel -LabelText "Đường dẫn Audit CSV:" -InputControl $txtAuditPath
-$pnlLogCard.Controls.Add($rowAuditPath)
-$rowAuditPath.BringToFront()
+# Dòng: Bật File Log & Debug Console
+$pnlLogChkRow = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 30; FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight; WrapContents = $false }
+$chkLogEnabled = New-Object System.Windows.Forms.CheckBox -Property @{ Text = "Kích hoạt ghi nhật ký ra tệp văn bản (.log)"; AutoSize = $true; Margin = New-Object System.Windows.Forms.Padding(0, 4, 24, 0) }
+$chkConsoleDebug = New-Object System.Windows.Forms.CheckBox -Property @{ Text = "Hiển thị chi tiết DEBUG ra Console"; AutoSize = $true; Margin = New-Object System.Windows.Forms.Padding(0, 4, 0, 0) }
+$pnlLogChkRow.Controls.AddRange(@($chkLogEnabled, $chkConsoleDebug))
+$pnlLogCard.Controls.Add($pnlLogChkRow)
+$pnlLogChkRow.BringToFront()
 
-# Dòng: Bật Audit CSV
-$pnlAuditChk = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 32 }
-$chkAuditCsv = New-Object System.Windows.Forms.CheckBox -Property @{ Text = "Kích hoạt ghi nhận chỉ số thực thi hàng tháng (Audit CSV)"; Dock = [System.Windows.Forms.DockStyle]::Fill }
-$pnlAuditChk.Controls.Add($chkAuditCsv)
-$pnlLogCard.Controls.Add($pnlAuditChk)
-$pnlAuditChk.BringToFront()
+# Dòng: Thư mục chứa Log
+$txtLogDir = New-Object System.Windows.Forms.TextBox
+$btnBrowseLogDir = New-Object System.Windows.Forms.Button -Property @{ Text = "Duyệt..."; Width = 80; Height = 26; Margin = New-Object System.Windows.Forms.Padding(6, 0, 0, 0) }
+$rowLogDir = New-SettingRowPanel -LabelText "Thư mục Nhật ký:" -InputControl $txtLogDir -ExtraControl $btnBrowseLogDir
+$pnlLogCard.Controls.Add($rowLogDir)
+$rowLogDir.BringToFront()
 
 # Dòng: Mức Log & Thời gian lưu trữ
 $pnlLevelRet = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill; Margin = New-Object System.Windows.Forms.Padding(0) }
@@ -525,31 +849,70 @@ $rowLogLevel = New-SettingRowPanel -LabelText "Mức Log & Lưu trữ:" -InputCo
 $pnlLogCard.Controls.Add($rowLogLevel)
 $rowLogLevel.BringToFront()
 
-# Dòng: Thư mục chứa Log
-$txtLogDir = New-Object System.Windows.Forms.TextBox
-$btnBrowseLogDir = New-Object System.Windows.Forms.Button -Property @{ Text = "Duyệt..."; Width = 80; Height = 26; Margin = New-Object System.Windows.Forms.Padding(6, 0, 0, 0) }
-$rowLogDir = New-SettingRowPanel -LabelText "Thư mục Nhật ký:" -InputControl $txtLogDir -ExtraControl $btnBrowseLogDir
-$pnlLogCard.Controls.Add($rowLogDir)
-$rowLogDir.BringToFront()
+# Dòng: Bật Audit CSV
+$pnlAuditChk = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 30 }
+$chkAuditCsv = New-Object System.Windows.Forms.CheckBox -Property @{ Text = "Kích hoạt ghi nhận chỉ số thực thi hàng tháng (Audit CSV)"; Dock = [System.Windows.Forms.DockStyle]::Fill }
+$pnlAuditChk.Controls.Add($chkAuditCsv)
+$pnlLogCard.Controls.Add($pnlAuditChk)
+$pnlAuditChk.BringToFront()
 
-# Dòng: Bật File Log
-$pnlLogChk = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 32 }
-$chkLogEnabled = New-Object System.Windows.Forms.CheckBox -Property @{ Text = "Kích hoạt ghi nhật ký ra tệp văn bản (.log)"; Dock = [System.Windows.Forms.DockStyle]::Fill }
-$pnlLogChk.Controls.Add($chkLogEnabled)
-$pnlLogCard.Controls.Add($pnlLogChk)
-$pnlLogChk.BringToFront()
+# Dòng: Đường dẫn Audit CSV
+$txtAuditPath = New-Object System.Windows.Forms.TextBox
+$rowAuditPath = New-SettingRowPanel -LabelText "Đường dẫn Audit CSV:" -InputControl $txtAuditPath
+$pnlLogCard.Controls.Add($rowAuditPath)
+$rowAuditPath.BringToFront()
+
+# Dòng: Bật Summary JSON
+$pnlSummaryChk = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 30 }
+$chkSummaryJson = New-Object System.Windows.Forms.CheckBox -Property @{ Text = "Kích hoạt xuất báo cáo tóm tắt thực thi JSON (LatestRun.json)"; Dock = [System.Windows.Forms.DockStyle]::Fill }
+$pnlSummaryChk.Controls.Add($chkSummaryJson)
+$pnlLogCard.Controls.Add($pnlSummaryChk)
+$pnlSummaryChk.BringToFront()
+
+# Dòng: Đường dẫn Summary JSON
+$txtSummaryJsonPath = New-Object System.Windows.Forms.TextBox
+$rowSummaryPath = New-SettingRowPanel -LabelText "Đường dẫn Summary JSON:" -InputControl $txtSummaryJsonPath
+$pnlLogCard.Controls.Add($rowSummaryPath)
+$rowSummaryPath.BringToFront()
 
 function Load-SettingsTab {
+    # 1. Credentials & HTTP
+    $txtCredTarget.Text = if ($script:CurrentConfig.PSObject.Properties['CredentialTarget'] -and $script:CurrentConfig.CredentialTarget) { [string]$script:CurrentConfig.CredentialTarget } else { '' }
+    $httpCfg = Get-CognosHttpSettings -Config $script:CurrentConfig
+    $numHttpTimeout.Value = $httpCfg.TimeoutMinutes
+
+    # 2. Retry Policy
+    $retryCfg = Get-CognosRetryPolicy -Config $script:CurrentConfig
+    $chkRetryEnabled.Checked = $retryCfg.Enabled
+    $numMaxRetries.Value = $retryCfg.MaxRetries
+    $numRetryDelay.Value = $retryCfg.InitialDelaySeconds
+    $numBackoff.Value = [decimal]$retryCfg.BackoffMultiplier
+
+    # 3. Task Scheduler tab defaults
+    $schedCfg = Get-CognosSchedulingConfig -Config $script:CurrentConfig
+    $txtTaskName.Text = $schedCfg.TaskName
+    $txtSchedTime.Text = $schedCfg.StartTime
+    $chkSchedElevated.Checked = $schedCfg.RunElevated
+    switch ($schedCfg.ScheduleType) {
+        'WEEKDAY' { $cmbSchedFreq.SelectedIndex = 1 }
+        'WEEKLY'  { $cmbSchedFreq.SelectedIndex = 2 }
+        'HOURLY'  { $cmbSchedFreq.SelectedIndex = 3 }
+        default   { $cmbSchedFreq.SelectedIndex = 0 }
+    }
+
+    # 4. Logging & Summary
     $logCfg = if ($script:CurrentConfig.PSObject.Properties['Logging']) { $script:CurrentConfig.Logging } else { $null }
     if ($logCfg) {
         $chkLogEnabled.Checked = if ($logCfg.PSObject.Properties['Enabled']) { [bool]$logCfg.Enabled } else { $true }
         $txtLogDir.Text = if ($logCfg.PSObject.Properties['LogDirectory']) { [string]$logCfg.LogDirectory } else { ".\Logs" }
         $cmbLogLevel.SelectedItem = if ($logCfg.PSObject.Properties['LogLevel']) { [string]$logCfg.LogLevel } else { "INFO" }
+        $chkConsoleDebug.Checked = if ($logCfg.PSObject.Properties['ConsoleDebug']) { [bool]$logCfg.ConsoleDebug } else { $false }
         $numRetention.Value = if ($logCfg.PSObject.Properties['RetentionDays']) { [int]$logCfg.RetentionDays } else { 30 }
         $chkAuditCsv.Checked = if ($logCfg.PSObject.Properties['AuditCsvEnabled']) { [bool]$logCfg.AuditCsvEnabled } else { $true }
         $txtAuditPath.Text = if ($logCfg.PSObject.Properties['AuditCsvPath']) { [string]$logCfg.AuditCsvPath } else { ".\Logs\Audit_{yyyyMM}.csv" }
+        $chkSummaryJson.Checked = if ($logCfg.PSObject.Properties['SummaryJsonEnabled']) { [bool]$logCfg.SummaryJsonEnabled } else { $true }
+        $txtSummaryJsonPath.Text = if ($logCfg.PSObject.Properties['SummaryJsonPath']) { [string]$logCfg.SummaryJsonPath } else { ".\Logs\LatestRun.json" }
     }
-    $txtCredTarget.Text = if ($script:CurrentConfig.PSObject.Properties['CredentialTarget'] -and $script:CurrentConfig.CredentialTarget) { [string]$script:CurrentConfig.CredentialTarget } else { '' }
 }
 
 $btnBrowseLogDir.add_Click({
@@ -565,15 +928,32 @@ function Sync-SettingsFromUI {
     if ($targetName) {
         Set-ObjectProperty -Object $script:CurrentConfig -Name 'CredentialTarget' -Value $targetName
     }
-    Set-ObjectProperty -Object $script:CurrentConfig -Name 'Logging' -Value ([ordered]@{
-        Enabled         = $chkLogEnabled.Checked
-        LogDirectory    = $txtLogDir.Text.Trim()
-        LogFileName     = "CognosDownloader_{yyyyMMdd}.log"
-        LogLevel        = [string]$cmbLogLevel.SelectedItem
-        RetentionDays   = [int]$numRetention.Value
-        AuditCsvEnabled = $chkAuditCsv.Checked
-        AuditCsvPath    = $txtAuditPath.Text.Trim()
+    
+    Set-ObjectProperty -Object $script:CurrentConfig -Name 'HttpSettings' -Value ([ordered]@{
+        TimeoutMinutes = [int]$numHttpTimeout.Value
     })
+
+    Set-ObjectProperty -Object $script:CurrentConfig -Name 'RetryPolicy' -Value ([ordered]@{
+        Enabled             = $chkRetryEnabled.Checked
+        MaxRetries          = [int]$numMaxRetries.Value
+        InitialDelaySeconds = [int]$numRetryDelay.Value
+        BackoffMultiplier   = [double]$numBackoff.Value
+    })
+
+    Set-ObjectProperty -Object $script:CurrentConfig -Name 'Logging' -Value ([ordered]@{
+        Enabled            = $chkLogEnabled.Checked
+        LogDirectory       = $txtLogDir.Text.Trim()
+        LogFileName        = "CognosDownloader_{yyyyMMdd}.log"
+        LogLevel           = [string]$cmbLogLevel.SelectedItem
+        ConsoleDebug       = $chkConsoleDebug.Checked
+        RetentionDays      = [int]$numRetention.Value
+        AuditCsvEnabled    = $chkAuditCsv.Checked
+        AuditCsvPath       = $txtAuditPath.Text.Trim()
+        SummaryJsonEnabled = $chkSummaryJson.Checked
+        SummaryJsonPath    = $txtSummaryJsonPath.Text.Trim()
+    })
+
+    Initialize-CognosLogging -LoggingConfig (Get-PropOrKey -Object $script:CurrentConfig -Name 'Logging') -BaseDirectory $scriptDir
 }
 
 $btnSaveSettingsOnly.add_Click({
@@ -586,7 +966,7 @@ $btnSaveSettingsOnly.add_Click({
     Sync-SettingsFromUI
     Save-CognosConfig -Path $ConfigPath -Config $script:CurrentConfig
     Gui-Log "Cài đặt đã được cập nhật và lưu vào: $ConfigPath" 'OK'
-    [System.Windows.Forms.MessageBox]::Show("Cài đặt đã được lưu thành công.", "Đã lưu Cài đặt", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+    [System.Windows.Forms.MessageBox]::Show("Cài đặt đã được lưu thành công vào tệp JSON.", "Đã lưu Cài đặt", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
 })
 
 # =============================================================================
@@ -615,7 +995,7 @@ $btnTestAll.add_Click({
             return
         }
 
-        Gui-Log "Bắt đầu kiểm tra kết nối tới $($instMap.Count) máy chủ với target '$credTarget'..."
+        Gui-Log "Bắt đầu kiểm tra kết nối tới $(@($instMap.Keys).Count) máy chủ với target '$credTarget'..."
         foreach ($k in $instMap.Keys) {
             $inst = $instMap[$k]
             try {
@@ -659,12 +1039,12 @@ $btnSetCred.add_Click({
     $txtU = New-Object System.Windows.Forms.TextBox -Property @{ Text = if ($stored) { $stored.Username } else { '' } }
     $rowU = New-SettingRowPanel -LabelText "Tên đăng nhập:" -InputControl $txtU
     $pnlDlgContent.Controls.Add($rowU)
-    $rowU.SendToBack()
+    $rowU.BringToFront()
 
     $txtP = New-Object System.Windows.Forms.TextBox -Property @{ PasswordChar = '*' }
     $rowP = New-SettingRowPanel -LabelText "Mật khẩu:" -InputControl $txtP
     $pnlDlgContent.Controls.Add($rowP)
-    $rowP.SendToBack()
+    $rowP.BringToFront()
 
     $pnlDlgBtns = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Bottom; Height = 36; FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft }
     $btnCancel = New-Object System.Windows.Forms.Button -Property @{ Text = "Hủy bỏ"; Size = New-Object System.Drawing.Size(85, 30); DialogResult = [System.Windows.Forms.DialogResult]::Cancel }
@@ -700,36 +1080,45 @@ function Show-ChoiceSelectionDialog {
 
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text = "Lựa chọn giá trị cho: $ParamName"
-    $dlg.Size = New-Object System.Drawing.Size(560, 480)
+    $dlg.Size = New-Object System.Drawing.Size(640, 520)
+    $dlg.MinimumSize = New-Object System.Drawing.Size(560, 420)
     $dlg.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
     $dlg.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $dlg.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Font
-    $dlg.Padding = New-Object System.Windows.Forms.Padding(14)
+    $dlg.Padding = New-Object System.Windows.Forms.Padding(16)
 
-    $pnlTop = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 58 }
+    $pnlTop = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 64 }
     $lblInfo = New-Object System.Windows.Forms.Label -Property @{
         Text = "Tìm kiếm danh mục ($(@($Choices).Count) lựa chọn từ Cognos server):"
         Dock = [System.Windows.Forms.DockStyle]::Top
-        Height = 22
+        Height = 24
         Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
     }
     $txtSearch = New-Object System.Windows.Forms.TextBox -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill }
     $pnlTop.Controls.Add($txtSearch)
     $pnlTop.Controls.Add($lblInfo)
-    $lblInfo.BringToFront()
+    $lblInfo.SendToBack()
 
-    $pnlBottom = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Bottom; Height = 44 }
-    $btnCancel = New-Object System.Windows.Forms.Button -Property @{ Text = "Hủy"; Size = New-Object System.Drawing.Size(80, 30); DialogResult = [System.Windows.Forms.DialogResult]::Cancel }
-    $btnOk = New-Object System.Windows.Forms.Button -Property @{ Text = "Chọn"; Size = New-Object System.Drawing.Size(100, 30); DialogResult = [System.Windows.Forms.DialogResult]::OK; BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232); ForeColor = [System.Drawing.Color]::White; FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+    $pnlBottom = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Bottom; Height = 52; Padding = New-Object System.Windows.Forms.Padding(0, 10, 0, 0) }
+    $btnCancel = New-Object System.Windows.Forms.Button -Property @{ Text = "Hủy bỏ"; Size = New-Object System.Drawing.Size(95, 32); DialogResult = [System.Windows.Forms.DialogResult]::Cancel; BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+    $btnCancel.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+    $btnOk = New-Object System.Windows.Forms.Button -Property @{ Text = "Chọn"; Size = New-Object System.Drawing.Size(110, 32); DialogResult = [System.Windows.Forms.DialogResult]::OK; BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232); ForeColor = [System.Drawing.Color]::White; FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0) }
     $btnOk.FlatAppearance.BorderSize = 0
 
-    $pnlBtnsRight = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Right; AutoSize = $true; FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft }
+    $pnlBtnsRight = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Right; AutoSize = $true; FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft; WrapContents = $false }
     $pnlBtnsRight.Controls.AddRange(@($btnCancel, $btnOk))
 
-    $pnlQuick = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Left; AutoSize = $true }
-    $btnSelectAll = New-Object System.Windows.Forms.Button -Property @{ Text = "Chọn tất cả"; Height = 28; Width = 95 }
-    $btnDeselectAll = New-Object System.Windows.Forms.Button -Property @{ Text = "Bỏ chọn"; Height = 28; Width = 80 }
-    $pnlQuick.Controls.AddRange(@($btnSelectAll, $btnDeselectAll))
+    $pnlQuick = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Left; AutoSize = $true; WrapContents = $false }
+    $btnSelectAll = New-Object System.Windows.Forms.Button -Property @{ Text = "Chọn tất cả"; Height = 32; Width = 100; BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0) }
+    $btnSelectAll.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+    $btnDeselectAll = New-Object System.Windows.Forms.Button -Property @{ Text = "Bỏ chọn"; Height = 32; Width = 85; BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+    $btnDeselectAll.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+    if ($IsMultiSelect) {
+        $pnlQuick.Controls.AddRange(@($btnSelectAll, $btnDeselectAll))
+    }
 
     $pnlBottom.Controls.Add($pnlBtnsRight)
     $pnlBottom.Controls.Add($pnlQuick)
@@ -800,17 +1189,19 @@ function Show-ReportEditDialog {
     $isEdit = ($null -ne $ExistingReport)
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text = if ($isEdit) { "Sửa Báo cáo: $($ExistingReport.Name)" } else { "Thêm Báo cáo Cognos Mới" }
-    $dlg.Size = New-Object System.Drawing.Size(780, 720)
-    $dlg.MinimumSize = New-Object System.Drawing.Size(700, 620)
+    $dlg.Size = New-Object System.Drawing.Size(840, 760)
+    $dlg.MinimumSize = New-Object System.Drawing.Size(740, 640)
     $dlg.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
     $dlg.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $dlg.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Font
     $dlg.Padding = New-Object System.Windows.Forms.Padding(16)
 
     # Thanh nút hành động phía dưới
-    $pnlDlgBottom = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Bottom; Height = 50; Padding = New-Object System.Windows.Forms.Padding(0, 8, 0, 0) }
-    $btnCancelReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Hủy bỏ"; Size = New-Object System.Drawing.Size(95, 32); DialogResult = [System.Windows.Forms.DialogResult]::Cancel }
-    $btnSaveReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Lưu Báo cáo"; Size = New-Object System.Drawing.Size(120, 32); BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232); ForeColor = [System.Drawing.Color]::White; FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0) }
+    $pnlDlgBottom = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Bottom; Height = 56; Padding = New-Object System.Windows.Forms.Padding(0, 10, 0, 0) }
+    $btnCancelReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Hủy bỏ"; Size = New-Object System.Drawing.Size(100, 32); DialogResult = [System.Windows.Forms.DialogResult]::Cancel; BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+    $btnCancelReport.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+    $btnSaveReport = New-Object System.Windows.Forms.Button -Property @{ Text = "Lưu Báo cáo"; Size = New-Object System.Drawing.Size(130, 32); BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232); ForeColor = [System.Drawing.Color]::White; FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0) }
     $btnSaveReport.FlatAppearance.BorderSize = 0
 
     $pnlDlgButtonsRight = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Right; AutoSize = $true; FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft; WrapContents = $false }
@@ -848,7 +1239,7 @@ function Show-ReportEditDialog {
     $txtN = New-Object System.Windows.Forms.TextBox -Property @{ Text = if ($isEdit) { [string](Get-PropOrKey -Object $ExistingReport -Name 'Name') } else { '' } }
     $rowName = New-SettingRowPanel -LabelText "Tên Báo cáo:" -InputControl $txtN
     $pnlFormBody.Controls.Add($rowName)
-    $rowName.SendToBack()
+    $rowName.BringToFront()
 
     # 2. Máy chủ & Trạng thái Bật/Tắt
     $pnlInstRow = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill; Margin = New-Object System.Windows.Forms.Padding(0) }
@@ -874,23 +1265,27 @@ function Show-ReportEditDialog {
     $pnlInstRow.Controls.AddRange(@($cmbI, $chkEn))
     $rowInst = New-SettingRowPanel -LabelText "Máy chủ Cognos:" -InputControl $pnlInstRow
     $pnlFormBody.Controls.Add($rowInst)
-    $rowInst.SendToBack()
+    $rowInst.BringToFront()
 
     # 3. Mã StoreID & Nút Dò tìm Tham số
     $txtS = New-Object System.Windows.Forms.TextBox -Property @{ Text = if ($isEdit) { [string](Get-PropOrKey -Object $ExistingReport -Name 'Source') } else { '' } }
-    $btnInspect = New-Object System.Windows.Forms.Button -Property @{ Text = "Dò tìm Tham số & Danh mục"; Width = 190; Height = 28; Margin = New-Object System.Windows.Forms.Padding(6, 0, 0, 0) }
+    $btnInspect = New-Object System.Windows.Forms.Button -Property @{ Text = "Dò tìm Tham số & Danh mục"; Width = 220; Height = 30; Margin = New-Object System.Windows.Forms.Padding(6, 0, 0, 0); BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254); ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+    $btnInspect.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(190, 215, 250)
     $rowSource = New-SettingRowPanel -LabelText "StoreID / Đường dẫn:" -InputControl $txtS -ExtraControl $btnInspect
     $pnlFormBody.Controls.Add($rowSource)
-    $rowSource.SendToBack()
+    $rowSource.BringToFront()
 
     # 4. Bảng Tham số (Parameters Grid)
-    $pnlParamSection = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 205; Padding = New-Object System.Windows.Forms.Padding(0, 6, 0, 6) }
+    $pnlParamSection = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 220; Padding = New-Object System.Windows.Forms.Padding(0, 6, 0, 6) }
     
-    $pnlParamHeaderBar = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 26 }
-    $lblParamHeader = New-Object System.Windows.Forms.Label -Property @{ Text = "Danh sách Tham số (Sử dụng token động như {Yesterday}, {Today}):"; Dock = [System.Windows.Forms.DockStyle]::Left; AutoSize = $true; Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold) }
-    $btnPickChoice = New-Object System.Windows.Forms.Button -Property @{ Text = "Chọn từ Danh mục Server..."; Dock = [System.Windows.Forms.DockStyle]::Right; Width = 180; Height = 24; Margin = New-Object System.Windows.Forms.Padding(0) }
+    $pnlParamHeaderBar = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 34; Padding = New-Object System.Windows.Forms.Padding(0, 0, 0, 4) }
+    $btnPickChoice = New-Object System.Windows.Forms.Button -Property @{ Text = "Chọn từ Danh mục Server..."; Dock = [System.Windows.Forms.DockStyle]::Right; Width = 220; Height = 28; Margin = New-Object System.Windows.Forms.Padding(0); BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254); ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+    $btnPickChoice.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(190, 215, 250)
+    
+    $lblParamHeader = New-Object System.Windows.Forms.Label -Property @{ Text = "Danh sách Tham số (Sử dụng token động như {Yesterday}, {Today}):"; Dock = [System.Windows.Forms.DockStyle]::Fill; TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft; Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold) }
     $pnlParamHeaderBar.Controls.Add($btnPickChoice)
     $pnlParamHeaderBar.Controls.Add($lblParamHeader)
+    $lblParamHeader.BringToFront()
 
     $gridParams = New-Object System.Windows.Forms.DataGridView
     $gridParams.Dock = [System.Windows.Forms.DockStyle]::Fill
@@ -918,9 +1313,9 @@ function Show-ReportEditDialog {
     }
     $pnlParamSection.Controls.Add($gridParams)
     $pnlParamSection.Controls.Add($pnlParamHeaderBar)
-    $pnlParamHeaderBar.BringToFront()
+    $pnlParamHeaderBar.SendToBack()
     $pnlFormBody.Controls.Add($pnlParamSection)
-    $pnlParamSection.SendToBack()
+    $pnlParamSection.BringToFront()
 
     # Xử lý: Nút Chọn từ Danh mục
     $handlePickChoice = {
@@ -958,26 +1353,28 @@ function Show-ReportEditDialog {
     $pnlFmtContainer.Controls.Add($cmbFmt)
     $rowFmt = New-SettingRowPanel -LabelText "Định dạng Xuất:" -InputControl $pnlFmtContainer
     $pnlFormBody.Controls.Add($rowFmt)
-    $rowFmt.SendToBack()
+    $rowFmt.BringToFront()
 
     # 6. Mẫu Đường dẫn Tệp Xuất
     $existingPath = if ($firstFmt) { [string](Get-PropOrKey -Object $firstFmt -Name 'OutputPath') } else { '' }
     $txtPath = New-Object System.Windows.Forms.TextBox -Property @{ Text = $existingPath }
     $rowPath = New-SettingRowPanel -LabelText "Mẫu Đường dẫn Tệp:" -InputControl $txtPath
     $pnlFormBody.Controls.Add($rowPath)
-    $rowPath.SendToBack()
+    $rowPath.BringToFront()
 
     # 7. Các nút Chèn Token Nhanh
-    $pnlTokens = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill; FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight; WrapContents = $false; Margin = New-Object System.Windows.Forms.Padding(0) }
+    $pnlTokens = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill; FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight; WrapContents = $true; Margin = New-Object System.Windows.Forms.Padding(0) }
     $tokens = @('{Yesterday:yyyyMMdd}', '{Today:yyyyMMdd}', '{ReportName}', '{Instance}')
     foreach ($t in $tokens) {
-        $btnT = New-Object System.Windows.Forms.Button -Property @{ Text = $t; AutoSize = $true; Height = 26; Margin = New-Object System.Windows.Forms.Padding(0, 2, 6, 2) }
+        $btnT = New-Object System.Windows.Forms.Button -Property @{ Text = $t; AutoSize = $true; Height = 28; Margin = New-Object System.Windows.Forms.Padding(0, 2, 6, 2); BackColor = [System.Drawing.Color]::White; ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+        $btnT.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
         $btnT.add_Click({ $txtPath.Paste($this.Text) })
         $pnlTokens.Controls.Add($btnT)
     }
     $rowTokens = New-SettingRowPanel -LabelText "Chèn Token Động:" -InputControl $pnlTokens
+    $rowTokens.Height = 52
     $pnlFormBody.Controls.Add($rowTokens)
-    $rowTokens.SendToBack()
+    $rowTokens.BringToFront()
 
     # Xử lý: Dò tìm tham số từ máy chủ
     $btnInspect.add_Click({
@@ -1059,8 +1456,8 @@ function Show-ReportEditDialog {
                 }
             }
 
-            Gui-Log "Đã phát hiện $($params.Count) tham số trên máy chủ [$instKey] ($reqCount bắt buộc, $choiceCount có danh mục)." 'OK'
-            [System.Windows.Forms.MessageBox]::Show("Đã phát hiện $($params.Count) tham số:`n- $reqCount tham số bắt buộc (*)`n- $choiceCount tham số có danh mục lựa chọn từ Cognos server.`n`nBạn có thể nhấp đúp vào dòng tham số hoặc bấm 'Chọn từ Danh mục Server' để xem danh sách lựa chọn.", "Đã Tìm Thấy Tham Số & Danh Mục", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+            Gui-Log "Đã phát hiện $(@($params.Keys).Count) tham số trên máy chủ [$instKey] ($reqCount bắt buộc, $choiceCount có danh mục)." 'OK'
+            [System.Windows.Forms.MessageBox]::Show("Đã phát hiện $(@($params.Keys).Count) tham số:`n- $reqCount tham số bắt buộc (*)`n- $choiceCount tham số có danh mục lựa chọn từ Cognos server.`n`nBạn có thể nhấp đúp vào dòng tham số hoặc bấm 'Chọn từ Danh mục Server' để xem danh sách lựa chọn.", "Đã Tìm Thấy Tham Số & Danh Mục", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         }
         catch {
             Gui-Log "Dò tìm tham số thất bại: $($_.Exception.Message)" 'ERROR'
@@ -1171,38 +1568,57 @@ $btnRunReport.add_Click({
         $repSource = Get-PropOrKey -Object $rep -Name 'Source'
         if ([string]::IsNullOrWhiteSpace($repName)) { $repName = $repSource }
 
-        Gui-Log "Bắt đầu tải báo cáo '$repName' trên máy chủ [$($instObj.Name)]..."
-        $http = New-CognosHttpClient -TimeoutMinutes 10
-        $xsrf = Invoke-CognosLogin -Context $http -CognosBaseUrl $instObj.CognosBaseUrl -Namespace $instObj.Namespace -Username $stored.Username -Password $stored.Password
+        Gui-Log "Bắt đầu tải báo cáo '$repName' trên máy chủ [$($instObj.Name)]..." 'INFO'
+        $session = $null
+        $getSession = {
+            if ($null -eq $session) {
+                $http = New-CognosHttpClient -TimeoutMinutes 10
+                $xsrf = Invoke-CognosLogin -Context $http -CognosBaseUrl $instObj.CognosBaseUrl -Namespace $instObj.Namespace -Username $stored.Username -Password $stored.Password
+                $session = [pscustomobject]@{ Context = $http; Xsrf = $xsrf }
+            }
+            return $session
+        }
 
         $repFormats = Get-PropOrKey -Object $rep -Name 'Formats'
+        $singleResults = [System.Collections.Generic.List[object]]::new()
+
         foreach ($fmtConfig in @($repFormats)) {
             $fmt = [string](Get-RequiredProperty -Object $fmtConfig -Name 'Format')
             $rawPath = [string](Get-RequiredProperty -Object $fmtConfig -Name 'OutputPath')
             $outPath = Resolve-DynamicTokens -Text $rawPath -Report $rep -Format $fmt
 
-            $parent = Split-Path -Parent $outPath
-            if ($parent -and -not (Test-Path -LiteralPath $parent)) {
-                New-Item -ItemType Directory -Path $parent -Force | Out-Null
+            [System.Windows.Forms.Application]::DoEvents()
+            $res = Invoke-CognosReportDownloadWithRetry `
+                -GetSessionScript $getSession `
+                -BaseUrl $instObj.CognosBaseUrl `
+                -Report $rep `
+                -Format $fmt `
+                -OutputPath $outPath `
+                -InstanceName $instObj.Name `
+                -MaxRetries 3 `
+                -InitialDelaySeconds 3 `
+                -BackoffMultiplier 2.0
+
+            $singleResults.Add($res)
+            if ($res.Status -ieq 'SUCCESS') {
+                $sizeMb = [Math]::Round($res.FileSizeBytes / 1MB, 2)
+                Gui-Log "THÀNH CÔNG: Đã lưu $outPath ($sizeMb MB)" 'OK'
+            } else {
+                Gui-Log "THẤT BẠI: $($res.ErrorMessage)" 'ERROR'
             }
-
-            $url = Get-ReportDefinitionUrl -CognosBaseUrl $instObj.CognosBaseUrl -Report $rep -Format $fmt
-            Gui-Log "Đang tải định dạng $fmt về $outPath..."
-
-            $downloadResult = Invoke-CognosReportDownload `
-                -Context $http `
-                -Url $url `
-                -Xsrf $xsrf `
-                -Format $fmt
-
-            $bytes = $downloadResult.Bytes
-            $sizeMb = [Math]::Round($bytes.Length / 1MB, 2)
-            [IO.File]::WriteAllBytes($outPath, $bytes)
-            Gui-Log "THÀNH CÔNG: Đã lưu $outPath ($sizeMb MB)" 'OK'
-            [System.Windows.Forms.MessageBox]::Show("Đã tải và lưu báo cáo thành công ($sizeMb MB):`n$outPath", "Tải Thành Công", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         }
-        $http.Client.Dispose()
-        $http.Handler.Dispose()
+
+        if ($null -ne $session -and $session.Context) {
+            if ($session.Context.Client) { $session.Context.Client.Dispose() }
+            if ($session.Context.Handler) { $session.Context.Handler.Dispose() }
+        }
+
+        $sCount = @($singleResults | Where-Object { $_.Status -ieq 'SUCCESS' }).Count
+        if ($sCount -eq @($singleResults).Count) {
+            [System.Windows.Forms.MessageBox]::Show("Đã tải và lưu báo cáo thành công ($sCount/$(@($singleResults).Count) định dạng)!", "Tải Thành Công", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        } else {
+            [System.Windows.Forms.MessageBox]::Show("Tải báo cáo hoàn tất với lỗi: $sCount/$(@($singleResults).Count) thành công.", "Cảnh Báo", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+        }
     }
     catch {
         Gui-Log "Tải báo cáo thất bại: $($_.Exception.Message)" 'ERROR'
@@ -1219,7 +1635,7 @@ $btnRunAllReports.add_Click({
     $reports = if ($null -ne $rawReports) { @($rawReports) } else { @() }
     $enabledReports = @($reports | Where-Object { $null -eq $_.Enabled -or $_.Enabled -ne $false })
 
-    if ($enabledReports.Count -eq 0) {
+    if (@($enabledReports).Count -eq 0) {
         [System.Windows.Forms.MessageBox]::Show("Không có báo cáo nào đang ở trạng thái kích hoạt (ĐANG BẬT).", "Không Có Báo Cáo", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         return
     }
@@ -1231,7 +1647,7 @@ $btnRunAllReports.add_Click({
         return
     }
 
-    $confirm = [System.Windows.Forms.MessageBox]::Show("Bạn có muốn bắt đầu tải toàn bộ $($enabledReports.Count) báo cáo đang kích hoạt không?", "Xác nhận Tải Tất Cả", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
+    $confirm = [System.Windows.Forms.MessageBox]::Show("Bạn có muốn bắt đầu tải toàn bộ $(@($enabledReports).Count) báo cáo đang kích hoạt không?", "Xác nhận Tải Tất Cả", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
     if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) { return }
 
     $btnRunAllReports.Enabled = $false
@@ -1241,12 +1657,10 @@ $btnRunAllReports.add_Click({
     $btnDeleteReport.Enabled = $false
 
     $sessions = @{}
-    $total = 0
-    $success = 0
-    $failed = 0
+    $allResults = [System.Collections.Generic.List[object]]::new()
 
     try {
-        Gui-Log "=== BẮT ĐẦU TIẾN TRÌNH TẢI TẤT CẢ ($($enabledReports.Count)) BÁO CÁO ===" 'INFO'
+        Gui-Log "=== BẮT ĐẦU TIẾN TRÌNH TẢI TẤT CẢ ($(@($enabledReports).Count)) BÁO CÁO ===" 'INFO'
         [System.Windows.Forms.Application]::DoEvents()
 
         foreach ($rep in $enabledReports) {
@@ -1257,95 +1671,88 @@ $btnRunAllReports.add_Click({
             $instObj = try { Get-CognosReportInstance -Config $script:CurrentConfig -Report $rep } catch { $null }
             if ($null -eq $instObj) {
                 Gui-Log "Bỏ qua '$repName': Không tìm thấy máy chủ liên kết." 'ERROR'
-                $failed++
+                $allResults.Add([pscustomobject]@{
+                    ReportName     = $repName
+                    Instance       = 'UNKNOWN'
+                    Source         = [string]$rep.Source
+                    Format         = 'UNKNOWN'
+                    Status         = 'FAILED'
+                    HttpStatusCode = 500
+                    FileSizeBytes  = 0
+                    DurationMs     = 0
+                    OutputPath     = ''
+                    Attempts       = 0
+                    ErrorMessage   = 'Instance not found'
+                })
                 continue
             }
 
-            # Lấy hoặc tạo phiên kết nối máy chủ
             $sessionKey = "$($instObj.CognosBaseUrl)|$($instObj.Namespace)"
-            if (-not $sessions.ContainsKey($sessionKey)) {
-                try {
+            $getSession = {
+                if (-not $sessions.ContainsKey($sessionKey)) {
                     Gui-Log "Đang đăng nhập vào [$($instObj.Name)] ($($instObj.CognosBaseUrl))..." 'INFO'
                     [System.Windows.Forms.Application]::DoEvents()
                     $http = New-CognosHttpClient -TimeoutMinutes 15
                     $xsrf = Invoke-CognosLogin -Context $http -CognosBaseUrl $instObj.CognosBaseUrl -Namespace $instObj.Namespace -Username $stored.Username -Password $stored.Password
-                    $sessions[$sessionKey] = [pscustomobject]@{ Http = $http; Xsrf = $xsrf; Instance = $instObj }
+                    $sessions[$sessionKey] = [pscustomobject]@{ Context = $http; Xsrf = $xsrf; Instance = $instObj }
                     Gui-Log "Đăng nhập thành công [$($instObj.Name)]." 'OK'
                 }
-                catch {
-                    Gui-Log "Đăng nhập thất bại vào [$($instObj.Name)]: $($_.Exception.Message)" 'ERROR'
-                    $failed++
-                    continue
-                }
+                return $sessions[$sessionKey]
             }
 
-            $currentSession = $sessions[$sessionKey]
             $repFormats = Get-PropOrKey -Object $rep -Name 'Formats'
             $formatList = if ($null -ne $repFormats) { @($repFormats) } else { @() }
 
-            if ($formatList.Count -eq 0) {
+            if (@($formatList).Count -eq 0) {
                 Gui-Log "Báo cáo '$repName' chưa cấu hình định dạng xuất." 'WARN'
                 continue
             }
 
             foreach ($fmtConfig in $formatList) {
-                $total++
                 $fmt = [string](Get-RequiredProperty -Object $fmtConfig -Name 'Format')
                 $rawPath = [string](Get-RequiredProperty -Object $fmtConfig -Name 'OutputPath')
                 $outPath = Resolve-DynamicTokens -Text $rawPath -Report $rep -Format $fmt
 
-                $sw = [System.Diagnostics.Stopwatch]::StartNew()
-                $httpStatus = 0
-                $fileBytes = 0
+                [System.Windows.Forms.Application]::DoEvents()
 
-                try {
-                    $parent = Split-Path -Parent $outPath
-                    if ($parent -and -not (Test-Path -LiteralPath $parent)) {
-                        New-Item -ItemType Directory -Path $parent -Force | Out-Null
-                    }
+                $res = Invoke-CognosReportDownloadWithRetry `
+                    -GetSessionScript $getSession `
+                    -BaseUrl $instObj.CognosBaseUrl `
+                    -Report $rep `
+                    -Format $fmt `
+                    -OutputPath $outPath `
+                    -InstanceName $instObj.Name `
+                    -MaxRetries 3 `
+                    -InitialDelaySeconds 5 `
+                    -BackoffMultiplier 2.0
 
-                    $url = Get-ReportDefinitionUrl -CognosBaseUrl $instObj.CognosBaseUrl -Report $rep -Format $fmt
-                    Gui-Log "Đang tải '$repName' [$($instObj.Name)] định dạng $fmt..." 'INFO'
-                    [System.Windows.Forms.Application]::DoEvents()
-
-                    $downloadResult = Invoke-CognosReportDownload `
-                        -Context $currentSession.Http `
-                        -Url $url `
-                        -Xsrf $currentSession.Xsrf `
-                        -Format $fmt
-
-                    $bytes = $downloadResult.Bytes
-                    $httpStatus = $downloadResult.HttpStatus
-                    [IO.File]::WriteAllBytes($outPath, $bytes)
-                    $fileBytes = $bytes.Length
-                    $sw.Stop()
-
-                    $sizeMb = [Math]::Round($fileBytes / 1MB, 2)
-                    $durSec = [Math]::Round($sw.ElapsedMilliseconds / 1000, 2)
-                    Gui-Log "Đã lưu $outPath ($sizeMb MB) trong ${durSec}s" 'OK'
-                    Write-AuditLog -ReportName $repName -Source ([string]$rep.Source) -Format $fmt -Status 'SUCCESS' -HttpStatusCode $httpStatus -FileSizeBytes $fileBytes -DurationMs $sw.ElapsedMilliseconds -OutputPath $outPath
-
-                    $success++
-                }
-                catch {
-                    $sw.Stop()
-                    $failed++
-                    Gui-Log "Tải thất bại '$repName' / $fmt : $($_.Exception.Message)" 'ERROR'
-                    Write-AuditLog -ReportName $repName -Source ([string]$rep.Source) -Format $fmt -Status 'FAILED' -HttpStatusCode $httpStatus -FileSizeBytes $fileBytes -DurationMs $sw.ElapsedMilliseconds -OutputPath $outPath -ErrorMessage $_.Exception.Message
+                $allResults.Add($res)
+                if ($res.Status -ieq 'SUCCESS') {
+                    $sizeMb = [Math]::Round($res.FileSizeBytes / 1MB, 2)
+                    Gui-Log "Đã lưu $outPath ($sizeMb MB)" 'OK'
+                } else {
+                    Gui-Log "Tải thất bại '$repName': $($res.ErrorMessage)" 'ERROR'
                 }
 
                 [System.Windows.Forms.Application]::DoEvents()
             }
         }
 
-        Gui-Log "=== HOÀN THÀNH: $success thành công, $failed thất bại (Tổng số định dạng: $total) ===" $(if ($failed -eq 0) { 'OK' } else { 'WARN' })
-        [System.Windows.Forms.MessageBox]::Show("Hoàn thành tiến trình tải tất cả báo cáo:`n`n- Thành công: $success`n- Thất bại: $failed`n- Tổng định dạng: $total", "Kết Quả Tải Báo Cáo", [System.Windows.Forms.MessageBoxButtons]::OK, $(if ($failed -eq 0) { [System.Windows.Forms.MessageBoxIcon]::Information } else { [System.Windows.Forms.MessageBoxIcon]::Warning }))
+        # Lưu báo cáo tổng kết thực thi
+        $logDir = if ($script:CurrentConfig.Logging -and $script:CurrentConfig.Logging.LogDirectory) { $script:CurrentConfig.Logging.LogDirectory } else { '.\Logs' }
+        Write-ExecutionSummaryReport -Results @($allResults) -LogDirectory $logDir
+
+        $successCount = @($allResults | Where-Object { $_.Status -ieq 'SUCCESS' }).Count
+        $failedCount = @($allResults | Where-Object { $_.Status -ne 'SUCCESS' }).Count
+
+        Gui-Log "=== HOÀN THÀNH: $successCount thành công, $failedCount thất bại (Tổng số: $(@($allResults).Count)) ===" $(if ($failedCount -eq 0) { 'OK' } else { 'WARN' })
+        [System.Windows.Forms.MessageBox]::Show("Hoàn thành tiến trình tải tất cả báo cáo:`n`n- Thành công: $successCount`n- Thất bại: $failedCount`n- Tổng định dạng: $(@($allResults).Count)`n`nBáo cáo tóm tắt đã được lưu vào $logDir\LatestRun.json", "Kết Quả Tải Báo Cáo", [System.Windows.Forms.MessageBoxButtons]::OK, $(if ($failedCount -eq 0) { [System.Windows.Forms.MessageBoxIcon]::Information } else { [System.Windows.Forms.MessageBoxIcon]::Warning }))
     }
     finally {
         foreach ($s in $sessions.Values) {
-            if ($s.Http) {
-                if ($s.Http.Client) { $s.Http.Client.Dispose() }
-                if ($s.Http.Handler) { $s.Http.Handler.Dispose() }
+            if ($s.Context) {
+                if ($s.Context.Client) { $s.Context.Client.Dispose() }
+                if ($s.Context.Handler) { $s.Context.Handler.Dispose() }
             }
         }
         $btnRunAllReports.Enabled = $true
@@ -1381,17 +1788,17 @@ function Show-InstanceDialog {
     $txtK = New-Object System.Windows.Forms.TextBox -Property @{ Text = $Key; ReadOnly = $isEdit }
     $rowK = New-SettingRowPanel -LabelText "Tên Máy chủ:" -InputControl $txtK
     $pnlDlgContent.Controls.Add($rowK)
-    $rowK.SendToBack()
+    $rowK.BringToFront()
 
     $txtU = New-Object System.Windows.Forms.TextBox -Property @{ Text = if ($isEdit) { [string]$ExistingInstance.CognosBaseUrl } else { '' } }
     $rowU = New-SettingRowPanel -LabelText "Đường dẫn Base URL:" -InputControl $txtU
     $pnlDlgContent.Controls.Add($rowU)
-    $rowU.SendToBack()
+    $rowU.BringToFront()
 
     $txtN = New-Object System.Windows.Forms.TextBox -Property @{ Text = if ($isEdit) { [string]$ExistingInstance.Namespace } else { '' } }
     $rowN = New-SettingRowPanel -LabelText "Không gian tên (Namespace):" -InputControl $txtN
     $pnlDlgContent.Controls.Add($rowN)
-    $rowN.SendToBack()
+    $rowN.BringToFront()
 
     $pnlBtns = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Bottom; Height = 36; FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft }
     $btnCancel = New-Object System.Windows.Forms.Button -Property @{ Text = "Hủy bỏ"; Size = New-Object System.Drawing.Size(85, 30); DialogResult = [System.Windows.Forms.DialogResult]::Cancel }
@@ -1503,6 +1910,7 @@ $btnDeleteInst.add_Click({
 function Initialize-Gui {
     Refresh-ReportsGrid
     Refresh-InstancesGrid
+    Refresh-ScheduleTab
     Load-SettingsTab
     Gui-Log "Đã nạp cấu hình thành công từ: $ConfigPath" 'OK'
     $instMap = Get-CognosInstances -Config $script:CurrentConfig

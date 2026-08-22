@@ -84,12 +84,11 @@ if ($null -eq $stored) {
     Write-Log 'Đã lưu thông tin tài khoản thành công.' 'OK'
 }
 
-# -----------------------------------------------------------------------------
-# Quản lý Phiên Đa Máy chủ (Multi-Instance Session Management)
-# -----------------------------------------------------------------------------
+$httpSettings = Get-CognosHttpSettings -Config $config
+$retryPolicy = Get-CognosRetryPolicy -Config $config
 
 $allInstances = Get-CognosInstances -Config $config
-if ($allInstances.Count -eq 0) {
+if (@($allInstances.Keys).Count -eq 0) {
     throw "Không có máy chủ Cognos nào được cấu hình trong $ConfigPath."
 }
 
@@ -107,7 +106,7 @@ function Get-OrCreateCognosSession {
     }
 
     Write-Log "Đang kết nối tới máy chủ Cognos [$($Instance.Name)] tại $($Instance.CognosBaseUrl)..."
-    $ctx = New-CognosHttpClient
+    $ctx = New-CognosHttpClient -TimeoutMinutes $httpSettings.TimeoutMinutes
     $xsrf = Invoke-CognosLogin `
         -Context $ctx `
         -CognosBaseUrl $Instance.CognosBaseUrl `
@@ -132,7 +131,7 @@ try {
     # -------------------------------------------------------------------------
 
     if ($TestConnection) {
-        Write-Log "Bắt đầu kiểm tra kết nối tới tất cả ($($allInstances.Count)) máy chủ Cognos đã cấu hình..."
+        Write-Log "Bắt đầu kiểm tra kết nối tới tất cả ($(@($allInstances.Keys).Count)) máy chủ Cognos đã cấu hình..."
         foreach ($instName in $allInstances.Keys) {
             $inst = $allInstances[$instName]
             $null = Get-OrCreateCognosSession -Instance $inst -StoredCredential $stored
@@ -150,9 +149,7 @@ try {
         throw 'Không có báo cáo nào được định nghĩa trong tệp cấu hình.'
     }
 
-    $total = 0
-    $success = 0
-    $failed = 0
+    $executionResults = [System.Collections.Generic.List[object]]::new()
 
     # -------------------------------------------------------------------------
     # Tiến trình Tải Báo cáo Hàng loạt
@@ -177,11 +174,8 @@ try {
 
         # Tìm máy chủ tương ứng của báo cáo
         $reportInstance = Get-CognosReportInstance -Config $config -Report $report
-        $session = Get-OrCreateCognosSession -Instance $reportInstance -StoredCredential $stored
 
         foreach ($formatConfig in @($formatsProp)) {
-            $total++
-
             $format = Get-RequiredProperty -Object $formatConfig -Name 'Format'
             $rawOutputPath = Get-RequiredProperty -Object $formatConfig -Name 'OutputPath'
 
@@ -190,69 +184,32 @@ try {
             # -----------------------------------------------------------------
             $outputPath = Resolve-DynamicTokens -Text $rawOutputPath -Report $report -Format $format
 
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            $httpStatus = 0
-            $fileBytes = 0
+            # Tải báo cáo với cơ chế tự động thử lại (Retry with Backoff theo cấu hình JSON)
+            $res = Invoke-CognosReportDownloadWithRetry `
+                -GetSessionScript { Get-OrCreateCognosSession -Instance $reportInstance -StoredCredential $stored } `
+                -BaseUrl $reportInstance.CognosBaseUrl `
+                -Report $report `
+                -Format $format `
+                -OutputPath $outputPath `
+                -InstanceName $reportInstance.Name `
+                -MaxRetries $retryPolicy.MaxRetries `
+                -InitialDelaySeconds $retryPolicy.InitialDelaySeconds `
+                -BackoffMultiplier $retryPolicy.BackoffMultiplier
 
-            try {
-                # Tạo thư mục đầu ra nếu chưa tồn tại
-                $parent = Split-Path -Parent $outputPath
-                if ($parent -and -not (Test-Path -LiteralPath $parent)) {
-                    New-Item -ItemType Directory -Path $parent -Force | Out-Null
-                }
-
-                # Tạo URL REST cho máy chủ tương ứng
-                $url = Get-ReportDefinitionUrl -CognosBaseUrl $reportInstance.CognosBaseUrl -Report $report -Format $format
-
-                Write-Log "Đang tải '$reportName' [$($reportInstance.Name)] định dạng $format..."
-
-                # Tải dữ liệu báo cáo (tự động theo dõi phiên bất đồng bộ & phát hiện trang prompt)
-                $downloadResult = Invoke-CognosReportDownload `
-                    -Context $session.Context `
-                    -Url $url `
-                    -Xsrf $session.Xsrf `
-                    -Format $format
-
-                $bytes = $downloadResult.Bytes
-                $httpStatus = $downloadResult.HttpStatus
-                $contentType = $downloadResult.ContentType
-
-                Write-Log "Nhận được $($bytes.Length) bytes (Content-Type: '$contentType') cho $format" 'DEBUG'
-
-                # Lưu tệp ra ổ đĩa
-                [IO.File]::WriteAllBytes($outputPath, $bytes)
-                $fileBytes = $bytes.Length
-                $sw.Stop()
-
-                $sizeMb = [Math]::Round($fileBytes / 1MB, 2)
-                $durationSec = [Math]::Round($sw.ElapsedMilliseconds / 1000, 2)
-                Write-Log "Đã lưu $outputPath ($sizeMb MB) trong ${durationSec}s" 'OK'
-                Write-AuditLog -ReportName $reportName -Source ([string]$report.Source) -Format $format -Status 'SUCCESS' -HttpStatusCode $httpStatus -FileSizeBytes $fileBytes -DurationMs $sw.ElapsedMilliseconds -OutputPath $outputPath
-
-                $success++
-            }
-            catch {
-                $sw.Stop()
-                $failed++
-                Write-Log "Tải thất bại '$reportName' / $format : $($_.Exception.Message)" 'ERROR'
-                Write-AuditLog -ReportName $reportName -Source ([string]$report.Source) -Format $format -Status 'FAILED' -HttpStatusCode $httpStatus -FileSizeBytes $fileBytes -DurationMs $sw.ElapsedMilliseconds -OutputPath $outputPath -ErrorMessage $_.Exception.Message
-            }
+            $executionResults.Add($res)
         }
     }
 
     # -------------------------------------------------------------------------
-    # Tổng kết Thực thi
+    # Tổng kết Thực thi (Execution Summary Table & LatestRun.json)
     # -------------------------------------------------------------------------
 
-    Write-Host ''
-    Write-Log "Hoàn thành tiến trình tải báo cáo."
-    Write-Log "Tổng số định dạng yêu cầu: $total"
-    Write-Log "Thành công: $success" 'OK'
+    $logDir = if ($config.Logging -and $config.Logging.LogDirectory) { $config.Logging.LogDirectory } else { '.\Logs' }
+    Write-ExecutionSummaryReport -Results @($executionResults) -LogDirectory $logDir
 
-    if ($failed -gt 0) {
-        Write-Log "Thất bại: $failed" 'ERROR'
-    } else {
-        Write-Log "Thất bại: 0" 'OK'
+    $failedCount = @($executionResults | Where-Object { $_.Status -ne 'SUCCESS' }).Count
+    if ($failedCount -gt 0) {
+        exit 1
     }
 }
 finally {

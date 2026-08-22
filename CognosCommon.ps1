@@ -482,7 +482,7 @@ function Invoke-CognosLogin {
             throw 'Cognos authenticated successfully but no XSRF-TOKEN cookie was received.'
         }
 
-        Write-Log "Nhận thành công XSRF-TOKEN: $xsrf" 'DEBUG'
+        Write-Log "Nhận thành công XSRF-TOKEN (phiên đã được xác thực)." 'DEBUG'
         return $xsrf
     }
     finally {
@@ -527,7 +527,7 @@ function Invoke-CognosReportDownload {
 
             # 1. Kiểm tra nếu Cognos trả về trang nhập tham số Web HTML
             if ($sample -match '<!DOCTYPE html' -or $sample -match '<html' -or $sample -match 'ccs_prompt\.xts' -or $sample -match '<document[^>]*layoutData' -or $sample -match '<promptPages>') {
-                throw "Cognos yêu cầu nhập tham số trên giao diện web (trả về trang prompt HTML). Vui lòng kiểm tra lại tên hoặc giá trị các tham số bắt buộc trong cấu hình."
+                throw "Cognos yêu cầu nhập tham số trên giao diện web (trả về trang prompt HTML). Vui lòng kiểm tra lại tên hoặc giá trị các tham số trong cấu hình."
             }
 
             # 2. Kiểm tra nếu là phiên xử lý bất đồng bộ thực sự (Async Session Polling)
@@ -547,9 +547,20 @@ function Invoke-CognosReportDownload {
             }
 
             # 3. Kiểm tra lỗi nghiệp vụ từ Cognos
+            if ($sample -match 'RDS-ERR-1021' -or $sample -match 'unanswered prompts') {
+                $promptId = if ($sample -match '<rds:promptID>(.*?)</rds:promptID>') { $matches[1] } else { 'Không xác định' }
+                throw "Máy chủ Cognos thông báo thiếu câu trả lời cho tham số prompt (RDS-ERR-1021, PromptID: $promptId). Vui lòng kiểm tra lại cấu hình tham số hoặc định dạng XML promptAnswers."
+            }
+
             if ($sample -match 'RDS-ERR' -or $sample -match '<rds:error' -or $sample -match '<soapenv:Fault>') {
                 $fullText = [Text.Encoding]::UTF8.GetString($bytes)
-                throw "Máy chủ Cognos trả về nội dung lỗi: $fullText"
+                $errMsg = $fullText
+                if ($sample -match '<rds:message>(.*?)</rds:message>') {
+                    $errMsg = $matches[1]
+                } elseif ($sample -match '<messageString>(.*?)</messageString>') {
+                    $errMsg = $matches[1]
+                }
+                throw "Máy chủ Cognos trả về nội dung lỗi RDS: $errMsg"
             }
 
             # 4. Nếu là tệp XML nhưng định dạng yêu cầu không phải XML/spreadsheetML
@@ -606,14 +617,14 @@ function Get-CognosReportParameters {
         [xml]$doc = $xmlText
 
         # 1. Quét các nút prompt có cấu trúc trong Cognos 11 LDX và RDS XML chuẩn
-        $promptNodes = $doc.SelectNodes("//*[local-name()='p_date' or local-name()='p_value' or local-name()='p_txtbox' or local-name()='p_tree' or local-name()='selectDate' or local-name()='selectValue' or local-name()='textBox' or local-name()='prompt' or local-name()='promptControl' or local-name()='parameter' or local-name()='parameterControl']")
+        $promptNodes = $doc.SelectNodes("//*[local-name()='selectDate' or local-name()='selectValue' or local-name()='textBox' or local-name()='selectTree' or local-name()='selectWithSearch' or local-name()='selectInterval' or local-name()='p_date' or local-name()='p_value' or local-name()='p_txtbox' or local-name()='p_tree' or local-name()='prompt' or local-name()='promptControl' or local-name()='parameter' or local-name()='parameterControl' or local-name()='promptValues']")
         
         # Nếu không tìm thấy bằng danh sách thẻ, tìm tất cả nút cha của <pname> hoặc <parameterName>
-        if ($null -eq $promptNodes -or $promptNodes.Count -eq 0) {
+        if ($null -eq $promptNodes -or @($promptNodes).Count -eq 0) {
             $promptNodes = $doc.SelectNodes("//*[local-name()='pname' or local-name()='parameterName']/..")
         }
 
-        if ($null -ne $promptNodes -and $promptNodes.Count -gt 0) {
+        if ($null -ne $promptNodes -and @($promptNodes).Count -gt 0) {
             foreach ($pnode in $promptNodes) {
                 # Tránh xử lý nút con nếu đã lấy nút cha
                 if ($pnode.LocalName -in @('pname', 'parameterName', 'name')) { continue }
@@ -637,7 +648,7 @@ function Get-CognosReportParameters {
                 $paramKey = "p_$rawName"
 
                 # Bỏ qua nếu đã tồn tại và đã có choices
-                if ($params.Contains($paramKey) -and $params[$paramKey].Choices.Length -gt 0) {
+                if ($params.Contains($paramKey) -and @($params[$paramKey].Choices).Count -gt 0) {
                     continue
                 }
 
@@ -650,8 +661,12 @@ function Get-CognosReportParameters {
                     $pType = 'selectValue'
                 } elseif ($nodeLocal -in @('p_txtbox', 'textbox')) {
                     $pType = 'textBox'
-                } elseif ($nodeLocal -in @('p_tree', 'tree')) {
+                } elseif ($nodeLocal -in @('p_tree', 'tree', 'selecttree')) {
                     $pType = 'tree'
+                } elseif ($nodeLocal -in @('selectwithsearch')) {
+                    $pType = 'selectWithSearch'
+                } elseif ($nodeLocal -in @('selectinterval')) {
+                    $pType = 'selectInterval'
                 } else {
                     $typeNode = $pnode.SelectSingleNode(".//*[local-name()='type' or local-name()='uiType' or local-name()='selectUI' or local-name()='dateUI']")
                     if ($null -ne $typeNode -and -not [string]::IsNullOrWhiteSpace($typeNode.InnerText)) {
@@ -702,9 +717,9 @@ function Get-CognosReportParameters {
                     $isRequired = ($pnode.Attributes['usage'].Value -match 'required')
                 }
 
-                # Lựa chọn danh mục (Choices / Options trong LDX: <selOptions><sval> hoặc <choices><option>)
+                # Lựa chọn danh mục (Choices / Options trong LDX: <selOptions><sval>, <choices><option>, hoặc <values><item><SimplePValue>)
                 $choices = [System.Collections.Generic.List[object]]::new()
-                $optionNodes = $pnode.SelectNodes(".//*[local-name()='sval' or local-name()='option' or local-name()='choice' or local-name()='item' or local-name()='val']")
+                $optionNodes = $pnode.SelectNodes(".//*[local-name()='sval' or local-name()='option' or local-name()='choice' or local-name()='item' or local-name()='val' or local-name()='SimplePValue']")
                 if ($null -ne $optionNodes) {
                     foreach ($opt in $optionNodes) {
                         $useVal = $null
@@ -719,6 +734,8 @@ function Get-CognosReportParameters {
                             $useVal = $opt.Attributes['useValue'].Value.Trim()
                         } elseif ($opt.Attributes['value']) {
                             $useVal = $opt.Attributes['value'].Value.Trim()
+                        } elseif ($opt.LocalName -in @('sval', 'val') -and -not [string]::IsNullOrWhiteSpace($opt.InnerText)) {
+                            $useVal = $opt.InnerText.Trim()
                         }
 
                         $dispNode = $opt.SelectSingleNode(".//*[local-name()='disp' or local-name()='display' or local-name()='displayValue' or local-name()='caption']")
@@ -752,14 +769,14 @@ function Get-CognosReportParameters {
                 $defaultNode = $pnode.SelectSingleNode(".//*[local-name()='defOptions' or local-name()='default' or local-name()='defaultValue' or local-name()='defaultValues']")
                 if ($null -ne $defaultNode) {
                     $defItems = $defaultNode.SelectNodes(".//*[local-name()='use' or local-name()='useValue' or local-name()='dval' or local-name()='sval' or local-name()='item' or local-name()='val']")
-                    if ($null -ne $defItems -and $defItems.Count -gt 0) {
+                    if ($null -ne $defItems -and @($defItems).Count -gt 0) {
                         $defList = @()
                         foreach ($di in $defItems) {
                             if (-not [string]::IsNullOrWhiteSpace($di.InnerText)) {
                                 $defList += $di.InnerText.Trim()
                             }
                         }
-                        if ($defList.Count -gt 0) {
+                        if (@($defList).Count -gt 0) {
                             $defaultVal = if ($isMulti) { $defList } else { $defList[0] }
                         }
                     } elseif (-not [string]::IsNullOrWhiteSpace($defaultNode.InnerText)) {
@@ -769,7 +786,7 @@ function Get-CognosReportParameters {
 
                 if (-not $defaultVal) {
                     if ($isDateTime) {
-                        $defaultVal = '{Yesterday}T00:00:00'
+                        $defaultVal = '{Yesterday}T00:00:00.000'
                     } elseif ($pType -match 'date' -or $paramKey -match 'date|ngay|time|denhan|quahan') {
                         $defaultVal = '{Yesterday}'
                     }
@@ -788,7 +805,7 @@ function Get-CognosReportParameters {
         }
 
         # 2. Fallback an toàn (chỉ tìm thẻ <pname> hoặc <parameterName>, tuyệt đối không quét thẻ <name> chung chung)
-        if ($params.Count -eq 0) {
+        if (@($params.Keys).Count -eq 0) {
             $pnodes = $doc.SelectNodes("//*[local-name()='pname' or local-name()='parameterName']")
             if ($null -ne $pnodes) {
                 foreach ($node in $pnodes) {
@@ -816,7 +833,7 @@ function Get-CognosReportParameters {
         Write-Log "Lỗi phân tích cú pháp XML prompt cho '$Source': $($_.Exception.Message)" 'WARN'
     }
 
-    Write-Log "Đã trích xuất ($($params.Count)) tham số từ schema: $(($params.Keys) -join ', ')" 'DEBUG'
+    Write-Log "Đã trích xuất ($(@($params.Keys).Count)) tham số từ schema: $(($params.Keys) -join ', ')" 'DEBUG'
     return $params
 }
 
@@ -976,11 +993,82 @@ function Add-QueryParameter {
     }
 }
 
+function New-CognosPromptAnswersXml {
+    param(
+        $Parameters,
+        $Report = $null,
+        [string]$Format = ''
+    )
+
+    if ($null -eq $Parameters) { return '' }
+    $pairs = @(Get-ObjectKeyValuePairs -Object $Parameters)
+    if ($pairs.Count -eq 0) { return '' }
+
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append('<promptAnswers>')
+
+    foreach ($pair in $pairs) {
+        $rawName = [string]$pair.Name
+        if ([string]::IsNullOrWhiteSpace($rawName)) { continue }
+
+        # Tên tham số chuẩn trong Cognos (bỏ tiền tố p_ nếu có để đưa vào thẻ <name>)
+        $cleanName = if ($rawName.StartsWith('p_') -and $rawName.Length -gt 2) { $rawName.Substring(2) } else { $rawName }
+        $escapedName = [System.Security.SecurityElement]::Escape($cleanName)
+
+        $val = $pair.Value
+        [void]$sb.Append("<promptValues><name>$escapedName</name><values>")
+
+        if ($null -eq $val) {
+            # Tham số rỗng
+        }
+        elseif ($val -is [System.Collections.IEnumerable] -and -not ($val -is [string])) {
+            foreach ($item in $val) {
+                if ($null -ne $item) {
+                    $evalItem = Resolve-DynamicTokens -Text ([string]$item) -Report $Report -Format $Format
+                    if (-not [string]::IsNullOrWhiteSpace($evalItem)) {
+                        $escapedVal = [System.Security.SecurityElement]::Escape($evalItem.Trim())
+                        [void]$sb.Append("<item><SimplePValue><inclusive>true</inclusive><useValue>$escapedVal</useValue></SimplePValue></item>")
+                    }
+                }
+            }
+        }
+        else {
+            $rawStr = [string]$val
+            if ([string]::IsNullOrWhiteSpace($rawStr)) {
+                # Tham số rỗng (ví dụ textBox optional)
+            }
+            else {
+                $evaluated = Resolve-DynamicTokens -Text $rawStr -Report $Report -Format $Format
+                $strTrimmed = $evaluated.Trim()
+
+                # Nếu là chuỗi phân tách bởi dấu phẩy (nhưng không phải định dạng ngày ISO)
+                if ($strTrimmed -match ',' -and $strTrimmed -notmatch '^\d{4}-\d{2}-\d{2}') {
+                    $subItems = @($strTrimmed -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+                    foreach ($sub in $subItems) {
+                        $escapedVal = [System.Security.SecurityElement]::Escape($sub)
+                        [void]$sb.Append("<item><SimplePValue><inclusive>true</inclusive><useValue>$escapedVal</useValue></SimplePValue></item>")
+                    }
+                }
+                else {
+                    $escapedVal = [System.Security.SecurityElement]::Escape($strTrimmed)
+                    [void]$sb.Append("<item><SimplePValue><inclusive>true</inclusive><useValue>$escapedVal</useValue></SimplePValue></item>")
+                }
+            }
+        }
+
+        [void]$sb.Append("</values></promptValues>")
+    }
+
+    [void]$sb.Append('</promptAnswers>')
+    return $sb.ToString()
+}
+
 function Get-ReportDefinitionUrl {
     param(
         [Parameter(Mandatory)] [string]$CognosBaseUrl,
         [Parameter(Mandatory)] $Report,
-        [Parameter(Mandatory)] [string]$Format
+        [Parameter(Mandatory)] [string]$Format,
+        [switch]$UseQueryParameters
     )
 
     $sourceType = Get-PropOrKey -Object $Report -Name 'SourceType'
@@ -994,44 +1082,66 @@ function Get-ReportDefinitionUrl {
 
     $parts = New-Object 'System.Collections.Generic.List[string]'
     $parts.Add('v=3')
-    $parts.Add('prompt=true')
 
-    # Tính toán giá trị dynamic token (VD: {Yesterday}) trong tham số prompt
     $paramsObj = Get-PropOrKey -Object $Report -Name 'Parameters'
-    if ($null -ne $paramsObj) {
-        foreach ($pair in @(Get-ObjectKeyValuePairs -Object $paramsObj)) {
-            $paramName = $pair.Name
-            $val = $pair.Value
-            if ($null -ne $val) {
-                if ($val -is [System.Collections.IEnumerable] -and -not ($val -is [string])) {
-                    $evalList = New-Object 'System.Collections.Generic.List[string]'
-                    foreach ($item in $val) {
-                        if ($null -ne $item) {
-                            $evalItem = Resolve-DynamicTokens -Text ([string]$item) -Report $Report -Format $Format
-                            if (-not [string]::IsNullOrWhiteSpace($evalItem)) {
-                                $evalList.Add($evalItem)
+    $hasParams = ($null -ne $paramsObj -and @(Get-ObjectKeyValuePairs -Object $paramsObj).Count -gt 0)
+
+    # Kiểm tra cấu hình có yêu cầu dùng shorthand query param hay không
+    $forceQueryParam = $UseQueryParameters.IsPresent
+    $reportOptions = Get-PropOrKey -Object $Report -Name 'Options'
+    if ($null -ne $reportOptions) {
+        $useQueryOpt = Get-PropOrKey -Object $reportOptions -Name 'UseQueryParameters'
+        if ($null -ne $useQueryOpt -and [bool]$useQueryOpt) {
+            $forceQueryParam = $true
+        }
+    }
+
+    if ($hasParams) {
+        if ($forceQueryParam) {
+            # Chế độ tương thích ngược: dùng p_<name> query parameters (không có prompt=true)
+            foreach ($pair in @(Get-ObjectKeyValuePairs -Object $paramsObj)) {
+                $paramName = $pair.Name
+                $val = $pair.Value
+                if ($null -ne $val) {
+                    if ($val -is [System.Collections.IEnumerable] -and -not ($val -is [string])) {
+                        $evalList = New-Object 'System.Collections.Generic.List[string]'
+                        foreach ($item in $val) {
+                            if ($null -ne $item) {
+                                $evalItem = Resolve-DynamicTokens -Text ([string]$item) -Report $Report -Format $Format
+                                if (-not [string]::IsNullOrWhiteSpace($evalItem)) {
+                                    $evalList.Add($evalItem)
+                                }
                             }
                         }
+                        if ($evalList.Count -gt 0) {
+                            Add-QueryParameter -Parts $parts -Name $paramName -Value $evalList
+                        }
                     }
-                    if ($evalList.Count -gt 0) {
-                        Add-QueryParameter -Parts $parts -Name $paramName -Value $evalList
-                    }
-                }
-                else {
-                    $rawVal = [string]$val
-                    if (-not [string]::IsNullOrWhiteSpace($rawVal)) {
-                        $evaluatedVal = Resolve-DynamicTokens -Text $rawVal -Report $Report -Format $Format
-                        Add-QueryParameter -Parts $parts -Name $paramName -Value $evaluatedVal
+                    else {
+                        $rawVal = [string]$val
+                        if (-not [string]::IsNullOrWhiteSpace($rawVal)) {
+                            $evaluatedVal = Resolve-DynamicTokens -Text $rawVal -Report $Report -Format $Format
+                            Add-QueryParameter -Parts $parts -Name $paramName -Value $evaluatedVal
+                        }
                     }
                 }
             }
         }
+        else {
+            # Chuẩn IBM Cognos Mashup Service: XML promptAnswers qua tham số xmlData
+            $promptXml = New-CognosPromptAnswersXml -Parameters $paramsObj -Report $Report -Format $Format
+            if (-not [string]::IsNullOrWhiteSpace($promptXml)) {
+                $encodedXml = [uri]::EscapeDataString($promptXml)
+                $parts.Add("xmlData=$encodedXml")
+            }
+        }
     }
 
-    $optionsObj = Get-PropOrKey -Object $Report -Name 'Options'
-    if ($null -ne $optionsObj) {
-        foreach ($pair in @(Get-ObjectKeyValuePairs -Object $optionsObj)) {
-            Add-QueryParameter -Parts $parts -Name $pair.Name -Value $pair.Value
+    if ($null -ne $reportOptions) {
+        foreach ($pair in @(Get-ObjectKeyValuePairs -Object $reportOptions)) {
+            if ($pair.Name -ne 'UseQueryParameters') {
+                Add-QueryParameter -Parts $parts -Name $pair.Name -Value $pair.Value
+            }
         }
     }
 
@@ -1044,7 +1154,9 @@ function Get-ReportDefinitionUrl {
         ($parts -join '&')
     )
 
-    Write-Log "Đã tạo REST URL tải báo cáo: $fullUrl" 'DEBUG'
+    $repName = Get-PropOrKey -Object $Report -Name 'Name'
+    if ([string]::IsNullOrWhiteSpace($repName)) { $repName = $source }
+    Write-Log "Đã tạo REST URL tải báo cáo '$repName' ($Format, tham số: $(if ($hasParams) { if ($forceQueryParam) { 'p_query' } else { 'promptAnswers xmlData' } } else { 'không có' }))" 'DEBUG'
     return $fullUrl
 }
 
@@ -1100,7 +1212,7 @@ function Get-CognosInstances {
         }
     }
 
-    if ($instances.Count -eq 0) {
+    if (@($instances.Keys).Count -eq 0) {
         throw "Lỗi cấu hình: Không có danh sách 'Instances' hợp lệ trong tệp cấu hình."
     }
 
@@ -1141,7 +1253,7 @@ function Get-CognosReportInstance {
     }
 
     # 3. Nếu chỉ có đúng 1 máy chủ được cấu hình, tự động sử dụng máy chủ đó
-    if ($allInstances.Count -eq 1) {
+    if (@($allInstances.Keys).Count -eq 1) {
         foreach ($k in $allInstances.Keys) {
             return $allInstances[$k]
         }
@@ -1158,12 +1270,19 @@ function Get-CognosReportInstance {
 
 # Internal state for logging configuration
 $script:LoggingState = @{
-    Enabled         = $false
-    LogFilePath     = $null
-    LogLevel        = 'INFO'
-    AuditCsvEnabled = $false
-    AuditCsvPath    = $null
+    Enabled            = $false
+    LogDirectory       = $null
+    LogFilePath        = $null
+    LogLevel           = 'INFO'
+    ConsoleDebug       = $false
+    RetentionDays      = 30
+    AuditCsvEnabled    = $false
+    AuditCsvPath       = $null
+    SummaryJsonEnabled = $false
+    SummaryJsonPath    = $null
 }
+
+$script:ConsoleDebug = $false
 
 $script:LogLevelWeights = @{
     'DEBUG' = 10
@@ -1171,6 +1290,58 @@ $script:LogLevelWeights = @{
     'OK'    = 20
     'WARN'  = 30
     'ERROR' = 40
+}
+
+function Get-CognosHttpSettings {
+    param($Config)
+    $httpProp = if ($null -ne $Config) { Get-PropOrKey -Object $Config -Name 'HttpSettings' } else { $null }
+    $timeoutProp = if ($null -ne $httpProp) { Get-PropOrKey -Object $httpProp -Name 'TimeoutMinutes' } else { $null }
+    $timeoutMin = if ($null -ne $timeoutProp -and [int]$timeoutProp -gt 0) { [int]$timeoutProp } else { 10 }
+    return [pscustomobject]@{
+        TimeoutMinutes = $timeoutMin
+    }
+}
+
+function Get-CognosRetryPolicy {
+    param($Config)
+    $retryProp = if ($null -ne $Config) { Get-PropOrKey -Object $Config -Name 'RetryPolicy' } else { $null }
+    $enProp = if ($null -ne $retryProp) { Get-PropOrKey -Object $retryProp -Name 'Enabled' } else { $null }
+    $maxProp = if ($null -ne $retryProp) { Get-PropOrKey -Object $retryProp -Name 'MaxRetries' } else { $null }
+    $initDelayProp = if ($null -ne $retryProp) { Get-PropOrKey -Object $retryProp -Name 'InitialDelaySeconds' } else { $null }
+    $backoffProp = if ($null -ne $retryProp) { Get-PropOrKey -Object $retryProp -Name 'BackoffMultiplier' } else { $null }
+
+    $enabled = if ($null -ne $enProp) { [bool]$enProp } else { $true }
+    $maxRetries = if ($null -ne $maxProp -and [int]$maxProp -ge 1) { [int]$maxProp } else { 3 }
+    $initialDelay = if ($null -ne $initDelayProp -and [int]$initDelayProp -ge 0) { [int]$initDelayProp } else { 5 }
+    $backoff = if ($null -ne $backoffProp -and [double]$backoffProp -ge 1.0) { [double]$backoffProp } else { 2.0 }
+
+    return [pscustomobject]@{
+        Enabled             = $enabled
+        MaxRetries          = if ($enabled) { $maxRetries } else { 1 }
+        InitialDelaySeconds = $initialDelay
+        BackoffMultiplier   = $backoff
+    }
+}
+
+function Get-CognosSchedulingConfig {
+    param($Config)
+    $schedProp = if ($null -ne $Config) { Get-PropOrKey -Object $Config -Name 'Scheduling' } else { $null }
+    $taskNameProp = if ($null -ne $schedProp) { Get-PropOrKey -Object $schedProp -Name 'TaskName' } else { $null }
+    $freqProp = if ($null -ne $schedProp) { Get-PropOrKey -Object $schedProp -Name 'ScheduleType' } else { $null }
+    $timeProp = if ($null -ne $schedProp) { Get-PropOrKey -Object $schedProp -Name 'StartTime' } else { $null }
+    $elevatedProp = if ($null -ne $schedProp) { Get-PropOrKey -Object $schedProp -Name 'RunElevated' } else { $null }
+
+    $taskName = if (-not [string]::IsNullOrWhiteSpace($taskNameProp)) { [string]$taskNameProp } else { 'CognosReportDownloader' }
+    $freq = if (-not [string]::IsNullOrWhiteSpace($freqProp)) { [string]$freqProp } else { 'DAILY' }
+    $time = if (-not [string]::IsNullOrWhiteSpace($timeProp)) { [string]$timeProp } else { '06:00' }
+    $elevated = if ($null -ne $elevatedProp) { [bool]$elevatedProp } else { $false }
+
+    return [pscustomobject]@{
+        TaskName     = $taskName
+        ScheduleType = $freq
+        StartTime    = $time
+        RunElevated  = $elevated
+    }
 }
 
 function Initialize-CognosLogging {
@@ -1181,13 +1352,16 @@ function Initialize-CognosLogging {
 
     if ($null -eq $LoggingConfig) {
         $LoggingConfig = [pscustomobject]@{
-            Enabled         = $true
-            LogDirectory    = (Join-Path $BaseDirectory 'Logs')
-            LogFileName     = 'CognosDownloader_{yyyyMMdd}.log'
-            LogLevel        = 'INFO'
-            RetentionDays   = 30
-            AuditCsvEnabled = $true
-            AuditCsvPath    = (Join-Path (Join-Path $BaseDirectory 'Logs') 'Audit_{yyyyMM}.csv')
+            Enabled            = $true
+            LogDirectory       = (Join-Path $BaseDirectory 'Logs')
+            LogFileName        = 'CognosDownloader_{yyyyMMdd}.log'
+            LogLevel           = 'INFO'
+            ConsoleDebug       = $false
+            RetentionDays      = 30
+            AuditCsvEnabled    = $true
+            AuditCsvPath       = (Join-Path (Join-Path $BaseDirectory 'Logs') 'Audit_{yyyyMM}.csv')
+            SummaryJsonEnabled = $true
+            SummaryJsonPath    = (Join-Path (Join-Path $BaseDirectory 'Logs') 'LatestRun.json')
         }
     }
 
@@ -1230,6 +1404,10 @@ function Initialize-CognosLogging {
         'INFO'
     }
 
+    $consoleDbgProp = Get-PropOrKey -Object $LoggingConfig -Name 'ConsoleDebug'
+    $consoleDebug = if ($null -ne $consoleDbgProp) { [bool]$consoleDbgProp } else { $false }
+    $script:ConsoleDebug = $consoleDebug
+
     $auditEnabledProp = Get-PropOrKey -Object $LoggingConfig -Name 'AuditCsvEnabled'
     $auditEnabled = if ($null -ne $auditEnabledProp) { [bool]$auditEnabledProp } else { $true }
 
@@ -1249,6 +1427,25 @@ function Initialize-CognosLogging {
         }
     }
 
+    $summaryJsonProp = Get-PropOrKey -Object $LoggingConfig -Name 'SummaryJsonEnabled'
+    $summaryJsonEnabled = if ($null -ne $summaryJsonProp) { [bool]$summaryJsonProp } else { $true }
+
+    $summaryJsonPath = $null
+    if ($summaryJsonEnabled) {
+        $summaryPathProp = Get-PropOrKey -Object $LoggingConfig -Name 'SummaryJsonPath'
+        $summaryPathRaw = if ($null -ne $summaryPathProp -and -not [string]::IsNullOrWhiteSpace([string]$summaryPathProp)) {
+            [string]$summaryPathProp
+        } else {
+            (Join-Path $logDir 'LatestRun.json')
+        }
+        $summaryPathResolved = Resolve-DynamicTokens -Text $summaryPathRaw
+        $summaryJsonPath = if ([System.IO.Path]::IsPathRooted($summaryPathResolved)) { $summaryPathResolved } else { (Join-Path $BaseDirectory $summaryPathResolved) }
+        $summaryParent = Split-Path -Parent $summaryJsonPath
+        if ($summaryParent -and -not (Test-Path -LiteralPath $summaryParent)) {
+            New-Item -ItemType Directory -Path $summaryParent -Force | Out-Null
+        }
+    }
+
     $retentionProp = Get-PropOrKey -Object $LoggingConfig -Name 'RetentionDays'
     $retentionDays = if ($null -ne $retentionProp -and [int]$retentionProp -gt 0) {
         [int]$retentionProp
@@ -1256,11 +1453,16 @@ function Initialize-CognosLogging {
         30
     }
 
-    $script:LoggingState.Enabled         = $true
-    $script:LoggingState.LogFilePath     = $logFilePath
-    $script:LoggingState.LogLevel        = $logLevel
-    $script:LoggingState.AuditCsvEnabled = $auditEnabled
-    $script:LoggingState.AuditCsvPath    = $auditPath
+    $script:LoggingState.Enabled            = $true
+    $script:LoggingState.LogDirectory       = $logDir
+    $script:LoggingState.LogFilePath        = $logFilePath
+    $script:LoggingState.LogLevel           = $logLevel
+    $script:LoggingState.ConsoleDebug       = $consoleDebug
+    $script:LoggingState.RetentionDays      = $retentionDays
+    $script:LoggingState.AuditCsvEnabled    = $auditEnabled
+    $script:LoggingState.AuditCsvPath       = $auditPath
+    $script:LoggingState.SummaryJsonEnabled = $summaryJsonEnabled
+    $script:LoggingState.SummaryJsonPath    = $summaryJsonPath
 
     Invoke-LogRetentionCleanup -LogDirectory $logDir -RetentionDays $retentionDays
 }
@@ -1314,10 +1516,13 @@ function Write-Log {
         default { 'White' }
     }
 
-    # Console output
-    Write-Host "$prefix $Message" -ForegroundColor $color
+    # Console output: only print if Level is NOT DEBUG, or if $script:ConsoleDebug is explicitly enabled
+    $isConsoleDebug = ($script:ConsoleDebug -eq $true) -or ($script:LoggingState.ConsoleDebug -eq $true)
+    if ($Level -ne 'DEBUG' -or $isConsoleDebug) {
+        Write-Host "$prefix $Message" -ForegroundColor $color
+    }
 
-    # File output
+    # File output: records complete traces according to LogLevel threshold
     if ($script:LoggingState.Enabled -and $script:LoggingState.LogFilePath) {
         $msgWeight = if ($script:LogLevelWeights.ContainsKey($Level)) { $script:LogLevelWeights[$Level] } else { 20 }
         $minWeight = if ($script:LogLevelWeights.ContainsKey($script:LoggingState.LogLevel)) { $script:LogLevelWeights[$script:LoggingState.LogLevel] } else { 20 }
@@ -1332,6 +1537,212 @@ function Write-Log {
                 # Fallback to avoid breaking execution
             }
         }
+    }
+}
+
+function Format-ExecutionSummaryTable {
+    param(
+        [Parameter(Mandatory)]
+        [array]$Results
+    )
+
+    if (@($Results).Count -eq 0) { return "" }
+
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine("")
+    [void]$sb.AppendLine("==========================================================================================================")
+    [void]$sb.AppendLine("                                      COGNOS DOWNLOAD SUMMARY                                             ")
+    [void]$sb.AppendLine("==========================================================================================================")
+    [void]$sb.AppendLine(("{0,-38} | {1,-10} | {2,-10} | {3,-7} | {4,9} | {5,9} | {6}" -f "Report Name", "Instance", "Format", "Status", "Duration", "Size", "Output File"))
+    [void]$sb.AppendLine("---------------------------------------+------------+------------+---------+-----------+-----------+------------------")
+
+    $totalDurationMs = 0
+    $totalBytes = 0
+    $successCount = 0
+    $failedCount = 0
+
+    foreach ($r in $Results) {
+        $rName = [string]$r.ReportName
+        $name = if ($rName.Length -gt 37) { $rName.Substring(0, 34) + "..." } else { $rName }
+        $inst = [string]$r.Instance
+        $fmt = [string]$r.Format
+        $stat = [string]$r.Status
+        $dur = ("{0:N1}s" -f ($r.DurationMs / 1000))
+        $sizeStr = if ($r.FileSizeBytes -gt 0) { ("{0:N2} MB" -f ($r.FileSizeBytes / 1MB)) } else { "--" }
+        $file = if ($r.OutputPath) { Split-Path -Leaf $r.OutputPath } else { "--" }
+
+        if ($stat -ieq 'SUCCESS') { $successCount++ } else { $failedCount++ }
+        $totalDurationMs += $r.DurationMs
+        $totalBytes += $r.FileSizeBytes
+
+        [void]$sb.AppendLine(("{0,-38} | {1,-10} | {2,-10} | {3,-7} | {4,9} | {5,9} | {6}" -f $name, $inst, $fmt, $stat, $dur, $sizeStr, $file))
+    }
+
+    $totalDurSec = ("{0:N1}s" -f ($totalDurationMs / 1000))
+    $totalMb = ("{0:N2} MB" -f ($totalBytes / 1MB))
+    [void]$sb.AppendLine("----------------------------------------------------------------------------------------------------------")
+    [void]$sb.AppendLine(" TOTAL: $successCount succeeded, $failedCount failed | Total Duration: $totalDurSec | Total Download Size: $totalMb")
+    [void]$sb.AppendLine("==========================================================================================================")
+
+    return $sb.ToString()
+}
+
+function Write-ExecutionSummaryReport {
+    param(
+        [Parameter(Mandatory)]
+        [array]$Results,
+        [string]$LogDirectory = '.\Logs'
+    )
+
+    $tableText = Format-ExecutionSummaryTable -Results $Results
+    
+    # Print summary table to console
+    Write-Host $tableText -ForegroundColor Cyan
+
+    # Write summary table to daily log file
+    if ($script:LoggingState.Enabled -and $script:LoggingState.LogFilePath) {
+        try {
+            [System.IO.File]::AppendAllText($script:LoggingState.LogFilePath, $tableText + [Environment]::NewLine, [System.Text.Encoding]::UTF8)
+        } catch { }
+    }
+
+    # Write structured LatestRun.json
+    try {
+        $writeJson = if ($null -ne $script:LoggingState.SummaryJsonEnabled) { [bool]$script:LoggingState.SummaryJsonEnabled } else { $true }
+        if ($writeJson) {
+            $jsonPath = if ($script:LoggingState.SummaryJsonPath) {
+                $script:LoggingState.SummaryJsonPath
+            } else {
+                $rawDir = if ($script:LoggingState.LogDirectory) { $script:LoggingState.LogDirectory } else { $LogDirectory }
+                if (-not $rawDir) { $rawDir = '.\Logs' }
+                $fullDir = [System.IO.Path]::GetFullPath($rawDir)
+                if (-not (Test-Path -LiteralPath $fullDir)) {
+                    New-Item -ItemType Directory -Path $fullDir -Force | Out-Null
+                }
+                Join-Path -Path $fullDir -ChildPath "LatestRun.json"
+            }
+
+            $jsonParent = Split-Path -Parent $jsonPath
+            if ($jsonParent -and -not (Test-Path -LiteralPath $jsonParent)) {
+                New-Item -ItemType Directory -Path $jsonParent -Force | Out-Null
+            }
+            
+            $successCount = @($Results | Where-Object { $_.Status -ieq 'SUCCESS' }).Count
+            $failedCount = @($Results | Where-Object { $_.Status -ne 'SUCCESS' }).Count
+            $totalBytes = ($Results | Measure-Object -Property FileSizeBytes -Sum).Sum
+            $totalMs = ($Results | Measure-Object -Property DurationMs -Sum).Sum
+
+            $summaryObj = [ordered]@{
+                Timestamp            = [DateTime]::Now.ToString('yyyy-MM-ddTHH:mm:sszzz')
+                TotalReports         = @($Results).Count
+                SuccessCount         = $successCount
+                FailedCount          = $failedCount
+                TotalDurationSeconds = [Math]::Round(($totalMs / 1000), 2)
+                TotalSizeMB          = [Math]::Round(($totalBytes / 1MB), 2)
+                Reports              = $Results
+            }
+
+            $jsonText = $summaryObj | ConvertTo-Json -Depth 5
+            [System.IO.File]::WriteAllText($jsonPath, $jsonText, [System.Text.Encoding]::UTF8)
+        }
+    }
+    catch { }
+}
+
+function Invoke-CognosReportDownloadWithRetry {
+    param(
+        [Parameter(Mandatory)] [scriptblock]$GetSessionScript,
+        [Parameter(Mandatory)] [string]$BaseUrl,
+        [Parameter(Mandatory)] $Report,
+        [Parameter(Mandatory)] [string]$Format,
+        [Parameter(Mandatory)] [string]$OutputPath,
+        [string]$InstanceName = '',
+        [int]$MaxRetries = 3,
+        [int]$InitialDelaySeconds = 5,
+        [double]$BackoffMultiplier = 2.0
+    )
+
+    $attempt = 0
+    $delay = $InitialDelaySeconds
+    $lastEx = $null
+    $repName = Get-PropOrKey -Object $Report -Name 'Name'
+    if ([string]::IsNullOrWhiteSpace($repName)) { $repName = Get-PropOrKey -Object $Report -Name 'Source' }
+
+    while ($attempt -lt $MaxRetries) {
+        $attempt++
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            $session = & $GetSessionScript
+            $url = Get-ReportDefinitionUrl -CognosBaseUrl $BaseUrl -Report $Report -Format $Format
+
+            Write-Log "Đang tải '$repName' $(if ($InstanceName) { "[$InstanceName]" }) ($Format)..." 'INFO'
+            
+            $downloadResult = Invoke-CognosReportDownload `
+                -Context $session.Context `
+                -Url $url `
+                -Xsrf $session.Xsrf `
+                -Format $Format
+
+            $bytes = $downloadResult.Bytes
+            $httpStatus = $downloadResult.HttpStatus
+            
+            # Ensure target folder exists
+            $parent = Split-Path -Parent $OutputPath
+            if ($parent -and -not (Test-Path -LiteralPath $parent)) {
+                New-Item -ItemType Directory -Path $parent -Force | Out-Null
+            }
+
+            [IO.File]::WriteAllBytes($OutputPath, $bytes)
+            $sw.Stop()
+
+            $sizeMb = [Math]::Round($bytes.Length / 1MB, 2)
+            $durSec = [Math]::Round($sw.ElapsedMilliseconds / 1000, 2)
+            Write-Log "THÀNH CÔNG: '$repName' -> $(Split-Path -Leaf $OutputPath) ($sizeMb MB trong ${durSec}s)" 'OK'
+
+            Write-AuditLog -ReportName $repName -Source ([string]$Report.Source) -Format $Format -Status 'SUCCESS' -HttpStatusCode $httpStatus -FileSizeBytes $bytes.Length -DurationMs $sw.ElapsedMilliseconds -OutputPath $OutputPath
+
+            return [pscustomobject]@{
+                ReportName     = $repName
+                Instance       = $InstanceName
+                Source         = [string]$Report.Source
+                Format         = $Format
+                Status         = 'SUCCESS'
+                HttpStatusCode = $httpStatus
+                FileSizeBytes  = $bytes.Length
+                DurationMs     = $sw.ElapsedMilliseconds
+                OutputPath     = $OutputPath
+                Attempts       = $attempt
+                ErrorMessage   = ''
+            }
+        }
+        catch {
+            $sw.Stop()
+            $lastEx = $_.Exception
+            $msg = $_.Exception.Message
+
+            if ($attempt -lt $MaxRetries) {
+                Write-Log "CẢNH BÁO: Tải '$repName' gặp lỗi (Lần $attempt/$MaxRetries): $msg. Thử lại sau ${delay}s..." 'WARN'
+                Start-Sleep -Seconds $delay
+                $delay = [int]($delay * $BackoffMultiplier)
+            } else {
+                Write-Log "THẤT BẠI: '$repName' sau $MaxRetries lần thử: $msg" 'ERROR'
+                Write-AuditLog -ReportName $repName -Source ([string]$Report.Source) -Format $Format -Status 'FAILED' -HttpStatusCode 500 -FileSizeBytes 0 -DurationMs $sw.ElapsedMilliseconds -OutputPath $OutputPath -ErrorMessage $msg
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        ReportName     = $repName
+        Instance       = $InstanceName
+        Source         = [string]$Report.Source
+        Format         = $Format
+        Status         = 'FAILED'
+        HttpStatusCode = 500
+        FileSizeBytes  = 0
+        DurationMs     = 0
+        OutputPath     = $OutputPath
+        Attempts       = $attempt
+        ErrorMessage   = $lastEx.Message
     }
 }
 
@@ -1392,5 +1803,207 @@ function Write-AuditLog {
     }
     catch {
         # Fallback to avoid interrupting core execution
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Quản lý Lập Lịch Windows Task Scheduler (Scheduled Tasks Management)
+# -----------------------------------------------------------------------------
+
+function Get-CognosScheduledTask {
+    param(
+        [string]$TaskName = 'CognosReportDownloader'
+    )
+
+    try {
+        $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        if ($null -eq $task) {
+            return $null
+        }
+
+        $taskInfo = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction SilentlyContinue
+
+        $triggers = if ($task.Triggers) { @($task.Triggers) } else { @() }
+        $trigger = if ($triggers.Count -gt 0) { $triggers[0] } else { $null }
+        $scheduleType = if ($trigger) {
+            if ($trigger.CimClass.CimClassName -match 'Daily') { 'DAILY' }
+            elseif ($trigger.CimClass.CimClassName -match 'Weekly') {
+                if ($trigger.DaysOfWeek -eq 62 -or "$($trigger.DaysOfWeek)" -match 'Monday|Tuesday|Wednesday|Thursday|Friday') {
+                    'WEEKDAY'
+                } else {
+                    'WEEKLY'
+                }
+            }
+            elseif ($trigger.CimClass.CimClassName -match 'Time' -or $trigger.Repetition.Interval) { 'HOURLY' }
+            else { 'CUSTOM' }
+        } else { 'UNKNOWN' }
+
+        $startTime = if ($trigger -and $trigger.StartBoundary) {
+            try { [DateTime]::Parse($trigger.StartBoundary).ToString("HH:mm") } catch { $trigger.StartBoundary }
+        } else { '' }
+
+        return [pscustomobject]@{
+            Exists         = $true
+            TaskName       = $task.TaskName
+            State          = [string]$task.State
+            ScheduleType   = $scheduleType
+            StartTime      = $startTime
+            LastRunTime    = if ($taskInfo) { $taskInfo.LastRunTime } else { $null }
+            NextRunTime    = if ($taskInfo) { $taskInfo.NextRunTime } else { $null }
+            LastTaskResult = if ($taskInfo) { $taskInfo.LastTaskResult } else { 0 }
+            Author         = $task.Author
+            Description    = $task.Description
+        }
+    }
+    catch {
+        # Fallback to schtasks.exe if Get-ScheduledTask is not available
+        try {
+            $output = & schtasks.exe /query /tn $TaskName /fo csv /v 2>$null
+            if ($LASTEXITCODE -eq 0 -and $output) {
+                return [pscustomobject]@{
+                    Exists         = $true
+                    TaskName       = $TaskName
+                    State          = 'Ready'
+                    ScheduleType   = 'DAILY'
+                    StartTime      = ''
+                    LastRunTime    = $null
+                    NextRunTime    = $null
+                    LastTaskResult = 0
+                    Author         = ''
+                    Description    = ''
+                }
+            }
+        }
+        catch { }
+        return $null
+    }
+}
+
+function Set-CognosScheduledTask {
+    param(
+        [string]$TaskName = 'CognosReportDownloader',
+        [string]$ScriptPath = '',
+        [string]$ConfigPath = '',
+        [ValidateSet('DAILY', 'WEEKDAY', 'WEEKLY', 'HOURLY')]
+        [string]$ScheduleType = 'DAILY',
+        [string]$StartTime = '06:00',
+        [bool]$RunElevated = $false
+    )
+
+    if (-not $ScriptPath) {
+        $ScriptPath = Join-Path -Path $PSScriptRoot -ChildPath 'CognosReportDownloader.ps1'
+    }
+    if (-not (Test-Path -LiteralPath $ScriptPath)) {
+        throw "Không tìm thấy tệp thực thi tải báo cáo tại: $ScriptPath"
+    }
+
+    $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
+    if ($ConfigPath -and (Test-Path -LiteralPath $ConfigPath)) {
+        $argList += " -ConfigPath `"$ConfigPath`""
+    }
+
+    $psExe = (Get-Command 'powershell.exe').Source
+    if (-not $psExe) { $psExe = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" }
+
+    # Parse StartTime (HH:mm)
+    $parsedTime = [DateTime]::Today.AddHours(6)
+    if ($StartTime -match '^(\d{1,2}):(\d{2})$') {
+        $hh = [int]$matches[1]
+        $mm = [int]$matches[2]
+        $parsedTime = [DateTime]::Today.AddHours($hh).AddMinutes($mm)
+    }
+
+    try {
+        # Preferred method: PowerShell ScheduledTasks cmdlets
+        $action = New-ScheduledTaskAction -Execute $psExe -Argument $argList -WorkingDirectory (Split-Path -Parent $ScriptPath)
+        
+        $trigger = switch ($ScheduleType) {
+            'DAILY'   { New-ScheduledTaskTrigger -Daily -At $parsedTime }
+            'WEEKDAY' { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At $parsedTime }
+            'WEEKLY'  { New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At $parsedTime }
+            'HOURLY'  { 
+                $t = New-ScheduledTaskTrigger -Once -At $parsedTime
+                $t.RepetitionDuration = [TimeSpan]::FromDays(3650) # 10 years
+                $t.RepetitionInterval = [TimeSpan]::FromHours(1)
+                $t
+            }
+        }
+
+        $principal = if ($RunElevated) {
+            New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
+        } else {
+            New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive
+        }
+
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
+
+        $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Tự động tải báo cáo IBM Cognos Analytics 11 (CognosDownloader)"
+        
+        Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
+        Write-Log -Message "Đã tạo/cập nhật thành công lịch tự động '$TaskName' (Loại: $ScheduleType, Giờ chạy: $($parsedTime.ToString('HH:mm')))" -Level 'OK'
+        return $true
+    }
+    catch {
+        # Fallback to schtasks.exe
+        $scParam = switch ($ScheduleType) {
+            'DAILY'   { '/sc daily' }
+            'WEEKDAY' { '/sc weekly /d MON,TUE,WED,THU,FRI' }
+            'WEEKLY'  { '/sc weekly /d MON' }
+            'HOURLY'  { '/sc hourly' }
+        }
+        $stParam = "/st $($parsedTime.ToString('HH:mm'))"
+        $rlParam = if ($RunElevated) { '/rl HIGHEST' } else { '' }
+        $trCmd = "`"$psExe`" $argList"
+
+        $cmd = "schtasks.exe /create /tn `"$TaskName`" /tr `"$trCmd`" $scParam $stParam $rlParam /f"
+        $res = Invoke-Expression $cmd
+        Write-Log -Message "Đã tạo/cập nhật lịch qua schtasks.exe: $res" -Level 'OK'
+        return $true
+    }
+}
+
+function Remove-CognosScheduledTask {
+    param(
+        [string]$TaskName = 'CognosReportDownloader'
+    )
+
+    try {
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop
+        Write-Log -Message "Đã xóa lịch tự động '$TaskName'." -Level 'OK'
+        return $true
+    }
+    catch {
+        try {
+            & schtasks.exe /delete /tn $TaskName /f 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log -Message "Đã xóa lịch tự động '$TaskName' qua schtasks." -Level 'OK'
+                return $true
+            }
+        }
+        catch { }
+        return $false
+    }
+}
+
+function Start-CognosScheduledTask {
+    param(
+        [string]$TaskName = 'CognosReportDownloader'
+    )
+
+    try {
+        Start-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+        Write-Log -Message "Đã kích hoạt chạy thử lịch tác vụ '$TaskName'." -Level 'OK'
+        return $true
+    }
+    catch {
+        try {
+            & schtasks.exe /run /tn $TaskName 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log -Message "Đã kích hoạt chạy tác vụ '$TaskName' qua schtasks." -Level 'OK'
+                return $true
+            }
+        }
+        catch { }
+        throw "Không thể kích hoạt chạy tác vụ '$TaskName': $($_.Exception.Message)"
     }
 }

@@ -38,24 +38,24 @@ function Connect-CognosSession {
     )
 
     $allInstances = Get-CognosInstances -Config $Config
-    if ($allInstances.Count -eq 0) {
+    if (@($allInstances.Keys).Count -eq 0) {
         throw "Không có máy chủ Cognos nào được cấu hình trong $ConfigPath."
     }
 
     $targetInstance = $Instance
     if ($null -eq $targetInstance) {
-        if ($allInstances.Count -eq 1) {
+        if (@($allInstances.Keys).Count -eq 1) {
             foreach ($k in $allInstances.Keys) { $targetInstance = $allInstances[$k] }
         } else {
             Write-Host "`nChọn máy chủ Cognos để kết nối:" -ForegroundColor Cyan
             $instKeys = @($allInstances.Keys)
-            for ($i = 0; $i -lt $instKeys.Count; $i++) {
+            for ($i = 0; $i -lt @($instKeys).Count; $i++) {
                 $k = $instKeys[$i]
                 $inst = $allInstances[$k]
                 Write-Host "  [$($i + 1)] $k ($($inst.CognosBaseUrl) - $($inst.Namespace))"
             }
-            $choice = Read-Host "Chọn máy chủ [1-$($instKeys.Count), mặc định: 1]"
-            $idx = if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le $instKeys.Count) { [int]$choice - 1 } else { 0 }
+            $choice = Read-Host "Chọn máy chủ [1-$(@($instKeys).Count), mặc định: 1]"
+            $idx = if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le @($instKeys).Count) { [int]$choice - 1 } else { 0 }
             $targetInstance = $allInstances[$instKeys[$idx]]
         }
     }
@@ -95,15 +95,15 @@ function Prompt-ForParameterValue {
     # 1. Nếu có danh sách lựa chọn từ máy chủ Cognos
     if ($null -ne $ParamInfo -and $ParamInfo.Choices -and @($ParamInfo.Choices).Count -gt 0) {
         $choices = @($ParamInfo.Choices)
-        Write-Host "`n  Tham số '$ParamName' $reqLabel có $($choices.Count) lựa chọn từ máy chủ Cognos:" -ForegroundColor $(if ($null -ne $ParamInfo -and $ParamInfo.IsRequired) { 'Yellow' } else { 'Cyan' })
-        $maxShow = [Math]::Min($choices.Count, 25)
+        Write-Host "`n  Tham số '$ParamName' $reqLabel có $(@($choices).Count) lựa chọn từ máy chủ Cognos:" -ForegroundColor $(if ($null -ne $ParamInfo -and $ParamInfo.IsRequired) { 'Yellow' } else { 'Cyan' })
+        $maxShow = [Math]::Min(@($choices).Count, 25)
         for ($i = 0; $i -lt $maxShow; $i++) {
             $c = $choices[$i]
             $disp = if ($c.Display -and $c.Display -ne $c.Use) { "$($c.Use) - $($c.Display)" } else { "$($c.Use)" }
             Write-Host "    [$($i + 1)] $disp"
         }
-        if ($choices.Count -gt 25) {
-            Write-Host "    ... (còn $($choices.Count - 25) lựa chọn khác)" -ForegroundColor DarkGray
+        if (@($choices).Count -gt 25) {
+            Write-Host "    ... (còn $(@($choices).Count - 25) lựa chọn khác)" -ForegroundColor DarkGray
         }
 
         $defChoice = if ($ParamInfo.DefaultValue) {
@@ -131,13 +131,13 @@ function Prompt-ForParameterValue {
         $picked = [System.Collections.Generic.List[string]]::new()
         foreach ($tok in $tokens) {
             $idx = 0
-            if ([int]::TryParse($tok, [ref]$idx) -and $idx -ge 1 -and $idx -le $choices.Count) {
+            if ([int]::TryParse($tok, [ref]$idx) -and $idx -ge 1 -and $idx -le @($choices).Count) {
                 $picked.Add($choices[$idx - 1].Use)
             } else {
                 $picked.Add($tok)
             }
         }
-        if ($picked.Count -gt 0) {
+        if (@($picked).Count -gt 0) {
             return ($picked -join ', ')
         }
         return $defChoice
@@ -293,25 +293,25 @@ function Action-ListReports {
 function Action-AddReport {
     param($Config)
     $allInstances = Get-CognosInstances -Config $Config
-    if ($allInstances.Count -eq 0) {
+    if (@($allInstances.Keys).Count -eq 0) {
         Write-Host "Không có máy chủ Cognos nào được cấu hình." -ForegroundColor Red
         return
     }
 
     # Chọn máy chủ nếu có nhiều máy chủ
     $selectedInstance = $null
-    if ($allInstances.Count -eq 1) {
+    if (@($allInstances.Keys).Count -eq 1) {
         foreach ($k in $allInstances.Keys) { $selectedInstance = $allInstances[$k] }
     } else {
         Write-Host "`nChọn máy chủ Cognos cho báo cáo này:" -ForegroundColor Cyan
         $instKeys = @($allInstances.Keys)
-        for ($i = 0; $i -lt $instKeys.Count; $i++) {
+        for ($i = 0; $i -lt @($instKeys).Count; $i++) {
             $k = $instKeys[$i]
             $inst = $allInstances[$k]
             Write-Host "  [$($i + 1)] $k ($($inst.CognosBaseUrl))"
         }
-        $choice = Read-Host "Chọn máy chủ [1-$($instKeys.Count), mặc định: 1]"
-        $idx = if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le $instKeys.Count) { [int]$choice - 1 } else { 0 }
+        $choice = Read-Host "Chọn máy chủ [1-$(@($instKeys).Count), mặc định: 1]"
+        $idx = if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le @($instKeys).Count) { [int]$choice - 1 } else { 0 }
         $selectedInstance = $allInstances[$instKeys[$idx]]
     }
 
@@ -328,8 +328,8 @@ function Action-AddReport {
     $discovered = Get-CognosReportParameters -Context $session.Http -BaseUrl $selectedInstance.CognosBaseUrl -SourceType "report" -Source $source -Xsrf $session.Xsrf
 
     $params = [ordered]@{}
-    if ($discovered.Count -gt 0) {
-        Write-Host "`nTìm thấy $($discovered.Count) tham số từ máy chủ Cognos:" -ForegroundColor Green
+    if (@($discovered.Keys).Count -gt 0) {
+        Write-Host "`nTìm thấy $(@($discovered.Keys).Count) tham số từ máy chủ Cognos:" -ForegroundColor Green
         foreach ($k in $discovered.Keys) {
             $pInfo = $discovered[$k]
             $params[$k] = Prompt-ForParameterValue -ParamName $k -ParamInfo $pInfo
@@ -408,7 +408,7 @@ function Action-EditReport {
     }
 
     Action-ListReports -Config $Config
-    $choice = Read-Host "`nNhập số thứ tự báo cáo cần sửa [1-$($reports.Count)]"
+    $choice = Read-Host "`nNhập số thứ tự báo cáo cần sửa [1-$(@($reports).Count)]"
     $idx = [int]$choice - 1
     if ($idx -lt 0 -or $idx -ge @($reports).Count) { return }
 
@@ -493,13 +493,13 @@ function Action-EditReport {
             $allInstances = Get-CognosInstances -Config $Config
             Write-Host "`nChọn máy chủ Cognos mới cho báo cáo này:" -ForegroundColor Cyan
             $instKeys = @($allInstances.Keys)
-            for ($i = 0; $i -lt $instKeys.Count; $i++) {
+            for ($i = 0; $i -lt @($instKeys).Count; $i++) {
                 $k = $instKeys[$i]
                 $inst = $allInstances[$k]
                 Write-Host "  [$($i + 1)] $k ($($inst.CognosBaseUrl))"
             }
-            $choice = Read-Host "Chọn máy chủ [1-$($instKeys.Count)]"
-            if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le $instKeys.Count) {
+            $choice = Read-Host "Chọn máy chủ [1-$(@($instKeys).Count)]"
+            if ([int]::TryParse($choice, [ref]$null) -and [int]$choice -ge 1 -and [int]$choice -le @($instKeys).Count) {
                 $selectedKey = $instKeys[[int]$choice - 1]
                 Set-ObjectProperty -Object $rep -Name 'Instance' -Value $selectedKey
                 Write-Host "Đã liên kết báo cáo với máy chủ: $selectedKey" -ForegroundColor Green
@@ -519,7 +519,7 @@ function Action-RemoveReport {
     if (@($reports).Count -eq 0) { return }
 
     Action-ListReports -Config $Config
-    $choice = Read-Host "`nNhập số thứ tự báo cáo cần XÓA [1-$($reports.Count), 0 để Hủy]"
+    $choice = Read-Host "`nNhập số thứ tự báo cáo cần XÓA [1-$(@($reports).Count), 0 để Hủy]"
     $idx = [int]$choice - 1
     if ($idx -lt 0 -or $idx -ge @($reports).Count) { return }
 
@@ -542,7 +542,7 @@ function Action-RemoveReport {
 function Action-TestConnection {
     param($Config)
     $allInstances = Get-CognosInstances -Config $Config
-    Write-Host "`nĐang kiểm tra kết nối tới $($allInstances.Count) máy chủ Cognos..." -ForegroundColor Cyan
+    Write-Host "`nĐang kiểm tra kết nối tới $(@($allInstances.Keys).Count) máy chủ Cognos..." -ForegroundColor Cyan
 
     $credTarget = Get-RequiredProperty -Object $Config -Name 'CredentialTarget'
     $stored = Get-WindowsGenericCredential -Target $credTarget
@@ -570,6 +570,90 @@ function Action-TestConnection {
     }
 }
 
+function Action-ManageSchedule {
+    param($Config)
+    
+    $taskName = 'CognosReportDownloader'
+    $tInfo = Get-CognosScheduledTask -TaskName $taskName
+
+    Write-Host "`n--- QUẢN LÝ LỊCH TỰ ĐỘNG (WINDOWS TASK SCHEDULER) ---" -ForegroundColor Cyan
+    if ($null -ne $tInfo -and $tInfo.Exists) {
+        Write-Host "  Tên tác vụ:       $($tInfo.TaskName)" -ForegroundColor Green
+        Write-Host "  Trạng thái:       $($tInfo.State) (Loại: $($tInfo.ScheduleType), Giờ: $($tInfo.StartTime))" -ForegroundColor Green
+        $lastRunStr = if ($tInfo.LastRunTime) { $tInfo.LastRunTime.ToString('yyyy-MM-dd HH:mm:ss') } else { 'Chưa chạy' }
+        Write-Host "  Lần chạy gần nhất: $lastRunStr (Mã kết quả: $($tInfo.LastTaskResult))"
+        $nextRunStr = if ($tInfo.NextRunTime) { $tInfo.NextRunTime.ToString('yyyy-MM-dd HH:mm:ss') } else { 'Không xác định' }
+        Write-Host "  Lần chạy tiếp:    $nextRunStr"
+    } else {
+        Write-Host "  Chưa có lịch tự động cho '$taskName'." -ForegroundColor Yellow
+    }
+
+    Write-Host "`n [1] Tạo / Cập nhật lịch tự động (Daily / Weekday / Weekly / Hourly)"
+    Write-Host " [2] Chạy thử tác vụ ngay (Trigger Run Now)"
+    Write-Host " [3] Xóa lịch tự động (Unregister Task)"
+    Write-Host " [4] Mở giao diện Windows Task Scheduler (taskschd.msc)"
+    Write-Host " [0] Quay lại Menu chính"
+
+    $subOpt = Read-Host "`nChọn thao tác [0-4]"
+    switch ($subOpt) {
+        '1' {
+            $freqChoice = Read-Host "Chọn tần suất: [1] Hàng ngày (Daily), [2] Các ngày làm việc (Thứ 2-6), [3] Hàng tuần (Weekly), [4] Hàng giờ (Hourly) [Mặc định: 1]"
+            $freq = switch ($freqChoice) {
+                '2' { 'WEEKDAY' }
+                '3' { 'WEEKLY' }
+                '4' { 'HOURLY' }
+                default { 'DAILY' }
+            }
+            $timeInput = Read-Host "Nhập giờ bắt đầu chạy [HH:mm, mặc định: 06:00]"
+            if (-not $timeInput) { $timeInput = '06:00' }
+            if ($timeInput -notmatch '^\d{1,2}:\d{2}$') {
+                Write-Host "[LỖI] Định dạng giờ không hợp lệ (cần dạng HH:mm, VD: 06:00, 07:30)." -ForegroundColor Red
+                return
+            }
+
+            $elevatedChoice = Read-Host "Chạy với quyền Administrator cao nhất (Highest Privileges)? (y/N)"
+            $isElevated = ($elevatedChoice -ieq 'y')
+
+            $scriptPath = Join-Path -Path $scriptDir -ChildPath 'CognosReportDownloader.ps1'
+            try {
+                Set-CognosScheduledTask -TaskName $taskName -ScriptPath $scriptPath -ConfigPath $ConfigPath -ScheduleType $freq -StartTime $timeInput -RunElevated $isElevated | Out-Null
+                
+                Set-ObjectProperty -Object $Config -Name 'Scheduling' -Value ([ordered]@{
+                    TaskName     = $taskName
+                    ScheduleType = $freq
+                    StartTime    = $timeInput
+                    RunElevated  = $isElevated
+                })
+                Save-CognosConfig -Path $ConfigPath -Config $Config
+                Write-Host "[OK] Đã thiết lập thành công lịch tự động '$taskName' ($freq lúc $timeInput) và lưu vào JSON!" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "[LỖI] Thiết lập lịch thất bại: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+        '2' {
+            try {
+                Start-CognosScheduledTask -TaskName $taskName | Out-Null
+                Write-Host "[OK] Đã kích hoạt chạy tác vụ '$taskName' trong nền bởi Windows Task Scheduler." -ForegroundColor Green
+            }
+            catch {
+                Write-Host "[LỖI] Kích hoạt tác vụ thất bại: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
+        '3' {
+            $confirm = Read-Host "Bạn có chắc chắn muốn xóa lịch '$taskName' không? (y/N)"
+            if ($confirm -ieq 'y') {
+                Remove-CognosScheduledTask -TaskName $taskName | Out-Null
+                Write-Host "[OK] Đã xóa lịch tự động '$taskName'." -ForegroundColor Green
+            }
+        }
+        '4' {
+            try { Start-Process "taskschd.msc" } catch { Write-Host "[LỖI] $($_.Exception.Message)" -ForegroundColor Red }
+        }
+        default { return }
+    }
+}
+
 # -----------------------------------------------------------------------------
 # Vòng Lặp Menu Chính (Main Menu Loop)
 # -----------------------------------------------------------------------------
@@ -582,6 +666,9 @@ if ($null -eq $config) {
     if ($init -ieq 'n') { exit 0 }
     $config = Action-InitConfig
 }
+
+$logCfg = if ($config.PSObject.Properties['Logging']) { $config.Logging } else { $null }
+Initialize-CognosLogging -LoggingConfig $logCfg -BaseDirectory $scriptDir
 
 while ($true) {
     $instMap = Get-CognosInstances -Config $config
@@ -601,10 +688,11 @@ while ($true) {
     Write-Host " [6] Cấu hình lại Máy chủ / Tài khoản xác thực"
     Write-Host " [7] Mở Giao diện Đồ họa (Windows Forms GUI)"
     Write-Host " [8] Chạy tải toàn bộ báo cáo ngay (Batch Downloader)"
+    Write-Host " [9] Cấu hình Lịch Tự Động (Windows Task Scheduler)"
     Write-Host " [0] Thoát"
     Write-Host "-------------------------------------------------------"
 
-    $opt = Read-Host "Chọn chức năng [0-8]"
+    $opt = Read-Host "Chọn chức năng [0-9]"
     switch ($opt) {
         '1' { Action-ListReports -Config $config }
         '2' { Action-AddReport -Config $config; $config = Load-CognosConfig -Path $ConfigPath }
@@ -614,6 +702,7 @@ while ($true) {
         '6' { $config = Action-InitConfig }
         '7' { & (Join-Path $scriptDir 'CognosConfigGui.ps1') -ConfigPath $ConfigPath; $config = Load-CognosConfig -Path $ConfigPath }
         '8' { & (Join-Path $scriptDir 'CognosReportDownloader.ps1') -ConfigPath $ConfigPath }
+        '9' { Action-ManageSchedule -Config $config }
         '0' { Write-Host "Tạm biệt!"; exit 0 }
         default { Write-Host "Lựa chọn không hợp lệ." -ForegroundColor Yellow }
     }

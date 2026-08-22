@@ -120,16 +120,30 @@ Schema structure for configuring multi-instance server endpoints, shared credent
 
 ## Logging & Auditing System
 
-The logging engine in `CognosCommon.ps1` provides unified console feedback, persistent file logs, and machine-readable execution audits:
+The logging engine in `CognosCommon.ps1` provides unified console feedback, persistent file logs, machine-readable execution audits, and structured pipeline reports:
 
 * **Console & File Logging (`Write-Log`)**:
   * Levels: `DEBUG`, `INFO`, `OK`, `WARN`, `ERROR` with configurable threshold filtering (`LogLevel`).
+  * **Minimal Console Logging**: `DEBUG` statements (raw HTTP request URLs, headers, redirect hops, cookie internals) are recorded strictly to file and omitted from console output unless `$script:ConsoleDebug = $true`.
   * File format: `[yyyy-MM-dd HH:mm:ss] [LEVEL] Message`.
 * **Execution Metrics & Audit Tracking (`Write-AuditLog`)**:
   * Appends execution records to a rolling monthly CSV (`Audit_{yyyyMM}.csv`).
   * Columns: `Timestamp`, `ReportName`, `Source`, `Format`, `Status`, `HttpStatusCode`, `FileSizeBytes`, `DurationMs`, `OutputPath`, `ErrorMessage`.
+* **End-of-Run Execution Summary Table (`Write-ExecutionSummaryReport`)**:
+  * Renders a clean ASCII summary table to console and appends it to the daily log upon completing a batch run:
+    * Columns: `Report Name`, `Instance`, `Format`, `Status`, `Duration`, `Size`, `Output File`.
+    * Bottom summary line: Succeeded/Failed count, Total Duration, and Total Download Size in MB.
+  * Writes a structured `Logs/LatestRun.json` report containing complete batch metrics for ingestion by downstream ETL or monitoring tools.
 * **Automatic Retention (`Invoke-LogRetentionCleanup`)**:
   * Automatically scans the log directory and purges log/audit files exceeding `RetentionDays` (default: 30 days).
+
+---
+
+## Automatic Retry Policy & Resilience
+
+Report downloads across all scripts implement `Invoke-CognosReportDownloadWithRetry`:
+* **Exponential Backoff**: When an intermittent network drop, HTTP 500/503, or Cognos queue congestion occurs, the downloader pauses (default: 5s initial delay, 2.0x multiplier) and retries up to 3 times before declaring failure.
+* **Session Renewal**: Retries re-authenticate and acquire a fresh XSRF session token if the existing session was terminated on the server.
 
 ---
 
