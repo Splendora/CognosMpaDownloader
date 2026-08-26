@@ -3,6 +3,9 @@
 ## Repository Overview
 
 **CognosDownloader** is a PowerShell-based automation tool and configuration manager for IBM Cognos Analytics 11. It automates the extraction and downloading of Cognos reports across multiple formats (`xlsxData`, `spreadsheetML`, `PDF`, `CSV`) via the Cognos RDS (Report Data Service / Mashup) REST interface, resolving dynamic date tokens and securely managing credentials using the native Windows Credential Manager.
+Note: User should enable PowerShell before running.
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
 
 ---
 

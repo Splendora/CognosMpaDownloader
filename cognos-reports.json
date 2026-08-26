@@ -1,5 +1,5 @@
 ﻿{
-    "CredentialTarget":  "COGNOS",
+    "CredentialTarget":  "MaCB",
     "DefaultInstance":  "ODS",
     "HttpSettings":  {
                          "TimeoutMinutes":  10
