@@ -1,0 +1,39 @@
+﻿{
+    "CredentialTarget":  "MaCB",
+    "DefaultInstance":  "MPA",
+    "HttpSettings":  {
+                         "TimeoutMinutes":  5
+                     },
+    "RetryPolicy":  {
+                        "Enabled":  true,
+                        "MaxRetries":  3,
+                        "InitialDelaySeconds":  5,
+                        "BackoffMultiplier":  2
+                    },
+    "Scheduling":  {
+                       "TaskName":  "MpaReportDownloader",
+                       "ScheduleType":  "DAILY",
+                       "StartTime":  "08:00",
+                       "RunElevated":  false
+                   },
+    "Instances":  {
+                      "MPA":  {
+                                  "MpaBaseUrl":  "http://10.53.44.180:9704/analytics-ws/saw.dll"
+                              }
+                  },
+    "Logging":  {
+                    "Enabled":  true,
+                    "LogDirectory":  ".\\Logs",
+                    "LogFileName":  "MpaDownloader_{yyyyMMdd}.log",
+                    "LogLevel":  "INFO",
+                    "ConsoleDebug":  false,
+                    "RetentionDays":  18,
+                    "AuditCsvEnabled":  true,
+                    "AuditCsvPath":  ".\\Logs\\Audit_{yyyyMM}.csv",
+                    "SummaryJsonEnabled":  true,
+                    "SummaryJsonPath":  ".\\Logs\\LatestRun.json"
+                },
+    "Reports":  [
+
+                ]
+}

@@ -13,7 +13,7 @@
     "Scheduling":  {
                        "TaskName":  "CognosReportDownloader",
                        "ScheduleType":  "DAILY",
-                       "StartTime":  "10:00",
+                       "StartTime":  "09:00",
                        "RunElevated":  false
                    },
     "Instances":  {
@@ -130,6 +130,22 @@
                                         {
                                             "Format":  "xlsxData",
                                             "OutputPath":  "\\\\10.26.136.32\\Dulieu121\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                                        }
+                                    ]
+                    },
+                    {
+                        "Name":  "TONG QUAN TTKH",
+                        "Instance":  "ODS",
+                        "Source":  "iCB2DB75A9092432D9109B877BFF73D73",
+                        "SourceType":  "report",
+                        "Enabled":  true,
+                        "Parameters":  {
+
+                                       },
+                        "Formats":  [
+                                        {
+                                            "Format":  "spreadsheetML",
+                                            "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
                                         }
                                     ]
                     }
