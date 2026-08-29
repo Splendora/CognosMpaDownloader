@@ -248,18 +248,27 @@ function Action-ListReports {
             if (@($paramProps).Count -gt 0) {
                 Write-Host "    Tham số Prompt:" -ForegroundColor Gray
                 foreach ($p in @($paramProps)) {
-                    if ($p.Value -is [System.Collections.IEnumerable] -and -not ($p.Value -is [string])) {
-                        $arrStr = ($p.Value | ForEach-Object { [string]$_ }) -join ', '
-                        Write-Host "      - $($p.Name) = [$arrStr] (Mảng $(@($p.Value).Count) phần tử)" -ForegroundColor Yellow
-                    } else {
-                        $rawVal = if ([string]::IsNullOrWhiteSpace([string]$p.Value)) { "<TRỐNG>" } else { [string]$p.Value }
-                        $preview = if ($rawVal -ne '<TRỐNG>') { Resolve-DynamicTokens -Text $rawVal } else { '' }
-                        
-                        if ($preview -and $preview -ne $rawVal) {
-                            Write-Host "      - $($p.Name) = $rawVal -> (Tính toán: $preview)" -ForegroundColor Yellow
+                    $rawVal = if ($null -ne $p.Value) {
+                        if ($p.Value -is [System.Collections.IEnumerable] -and -not ($p.Value -is [string])) {
+                            ($p.Value | ForEach-Object { [string]$_ }) -join ', '
+                        } else {
+                            [string]$p.Value
+                        }
+                    } else { '<TRỐNG>' }
+
+                    try {
+                        $evalArray = @(Resolve-DynamicTokenArray -Value $p.Value -Report $rep)
+                        if ($evalArray.Length -gt 1) {
+                            $sampleStr = ($evalArray | Select-Object -First 5) -join ', '
+                            $moreStr = if ($evalArray.Length -gt 5) { "... (+$(($evalArray.Length - 5)) giá trị)" } else { '' }
+                            Write-Host "      - $($p.Name) = $rawVal -> [Đã nạp $(($evalArray.Length)) giá trị: $sampleStr $moreStr]" -ForegroundColor Yellow
+                        } elseif ($evalArray.Length -eq 1 -and $evalArray[0] -ne $rawVal -and $rawVal -ne '<TRỐNG>') {
+                            Write-Host "      - $($p.Name) = $rawVal -> (Tính toán: $($evalArray[0]))" -ForegroundColor Yellow
                         } else {
                             Write-Host "      - $($p.Name) = $rawVal" -ForegroundColor Yellow
                         }
+                    } catch {
+                        Write-Host "      - $($p.Name) = $rawVal -> [Lỗi đọc tệp: $($_.Exception.Message)]" -ForegroundColor Red
                     }
                 }
             } else {

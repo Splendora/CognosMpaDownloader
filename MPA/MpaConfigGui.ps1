@@ -396,17 +396,17 @@ function Update-ReportDetailsPreview {
         [void]$sb.AppendLine("-----------------------------------------------------------")
         [void]$sb.AppendLine("THAM SỐ & BỘ LỌC BÁO CÁO (VARIABLES / PARAMETERS):")
         [void]$sb.AppendLine("-----------------------------------------------------------")
-        $pairs = Get-ObjectKeyValuePairs -Object $paramsObj
-        if ($pairs.Count -gt 0) {
+        $pairs = @(Get-ObjectKeyValuePairs -Object $paramsObj)
+        if ($pairs.Length -gt 0) {
             foreach ($p in $pairs) {
-                $evalArray = Resolve-DynamicTokenArray -Value $p.Value -DefaultDateFormat 'MM/dd/yyyy'
-                if ($evalArray.Count -gt 1) {
-                    [void]$sb.AppendLine("  * $($p.Name) = $($p.Value)  -->  [$($evalArray.Count) mốc ngày: $($evalArray[0]) ... $($evalArray[-1])]")
+                $evalArray = @(Resolve-DynamicTokenArray -Value $p.Value -DefaultDateFormat 'MM/dd/yyyy')
+                if ($evalArray.Length -gt 1) {
+                    [void]$sb.AppendLine("  * $($p.Name) = $($p.Value)  -->  [$($evalArray.Length) mốc ngày: $($evalArray[0]) ... $($evalArray[-1])]")
                     foreach ($item in $evalArray) {
                         [void]$sb.AppendLine("      - $item")
                     }
                 } else {
-                    $singleVal = if ($evalArray.Count -eq 1) { $evalArray[0] } else { '' }
+                    $singleVal = if ($evalArray.Length -eq 1) { $evalArray[0] } else { '' }
                     [void]$sb.AppendLine("  * $($p.Name) = $($p.Value)  -->  $singleVal")
                 }
             }

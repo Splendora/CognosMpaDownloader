@@ -296,6 +296,104 @@ function Resolve-DynamicTokens {
     return $resolved
 }
 
+function Resolve-DynamicTokenArray {
+    param(
+        $Value,
+        $Report = $null,
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Format = '',
+        [string]$BasePath = ''
+    )
+
+    if ($null -eq $Value) { return @() }
+
+    # If array / collection (and not string)
+    if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
+        $results = New-Object System.Collections.Generic.List[string]
+        foreach ($elem in $Value) {
+            $sub = Resolve-DynamicTokenArray -Value $elem -Report $Report -Format $Format -BasePath $BasePath
+            foreach ($s in $sub) { [void]$results.Add($s) }
+        }
+        return $results.ToArray()
+    }
+
+    $rawStr = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($rawStr)) { return @('') }
+
+    # 1. Kiá»ƒm tra náº¡p tham sá»‘ tá»« tá»‡p vÄƒn báº£n bÃªn ngoÃ i (@path hoáº·c {file:path})
+    $isFromFile = $false
+    $filePathRaw = ''
+
+    if ($rawStr -match '^\{file:\s*(.+?)\s*\}$') {
+        $isFromFile = $true
+        $filePathRaw = $matches[1].Trim('"', "'", ' ')
+    }
+    elseif ($rawStr.StartsWith('@')) {
+        $isFromFile = $true
+        $filePathRaw = $rawStr.Substring(1).Trim('"', "'", ' ')
+    }
+    elseif ($rawStr -match '(?i)\.(txt|csv)$') {
+        $trimmedCandidate = $rawStr.Trim('"', "'", ' ')
+        if ($trimmedCandidate.StartsWith('\\') -or $trimmedCandidate -match '^[a-zA-Z]:[\\/]' -or (Test-Path -LiteralPath $trimmedCandidate)) {
+            $isFromFile = $true
+            $filePathRaw = $trimmedCandidate
+        }
+    }
+
+    if ($isFromFile) {
+        $resolvedFilePath = Resolve-DynamicTokens -Text $filePathRaw -Report $Report -Format $Format
+        if (-not [System.IO.Path]::IsPathRooted($resolvedFilePath) -and -not $resolvedFilePath.StartsWith('\\') -and -not [string]::IsNullOrWhiteSpace($BasePath)) {
+            $resolvedFilePath = [System.IO.Path]::GetFullPath((Join-Path $BasePath $resolvedFilePath))
+        }
+
+        if (-not (Test-Path -LiteralPath $resolvedFilePath)) {
+            throw "KhÃ´ng tÃ¬m tháº¥y tá»‡p tham sá»‘: '$resolvedFilePath' (tá»« cáº¥u hÃ¬nh '$filePathRaw')"
+        }
+
+        $lines = [System.IO.File]::ReadAllLines($resolvedFilePath, [System.Text.Encoding]::UTF8)
+        $fileItems = New-Object System.Collections.Generic.List[string]
+
+        foreach ($line in $lines) {
+            $trimmedLine = $line.Trim()
+            if ([string]::IsNullOrWhiteSpace($trimmedLine) -or $trimmedLine.StartsWith('#') -or $trimmedLine.StartsWith('//') -or $trimmedLine.StartsWith('--') -or $trimmedLine.StartsWith(';')) {
+                continue
+            }
+
+            if ($trimmedLine -match '[,;]' -and $trimmedLine -notmatch '^\d{4}-\d{2}-\d{2}') {
+                $subTokens = $trimmedLine -split '[,;]'
+                foreach ($st in $subTokens) {
+                    $stTrimmed = $st.Trim().Trim('"', "'")
+                    if (-not [string]::IsNullOrWhiteSpace($stTrimmed)) {
+                        $evalSub = Resolve-DynamicTokens -Text $stTrimmed -Report $Report -Format $Format
+                        [void]$fileItems.Add($evalSub)
+                    }
+                }
+            }
+            else {
+                $evalLine = Resolve-DynamicTokens -Text $trimmedLine -Report $Report -Format $Format
+                [void]$fileItems.Add($evalLine)
+            }
+        }
+        return $fileItems.ToArray()
+    }
+
+    # 2. Chuá»—i phÃ¢n tÃ¡ch trá»±c tiáº¿p bá»Ÿi dáº¥u pháº©y hoáº·c cháº¥m pháº©y
+    $strTrimmed = $rawStr.Trim()
+    if ($strTrimmed -match '[,;]' -and $strTrimmed -notmatch '^\d{4}-\d{2}-\d{2}') {
+        $subItems = @($strTrimmed -split '[,;]' | ForEach-Object { $_.Trim().Trim('"', "'") } | Where-Object { $_ })
+        $results = New-Object System.Collections.Generic.List[string]
+        foreach ($sub in $subItems) {
+            $evalSub = Resolve-DynamicTokens -Text $sub -Report $Report -Format $Format
+            [void]$results.Add($evalSub)
+        }
+        return $results.ToArray()
+    }
+
+    $single = Resolve-DynamicTokens -Text $strTrimmed -Report $Report -Format $Format
+    return @($single)
+}
+
 # -----------------------------------------------------------------------------
 # 3. HTTP Client & Redirect Handler
 # -----------------------------------------------------------------------------
@@ -997,7 +1095,8 @@ function New-CognosPromptAnswersXml {
     param(
         $Parameters,
         $Report = $null,
-        [string]$Format = ''
+        [string]$Format = '',
+        [string]$BasePath = ''
     )
 
     if ($null -eq $Parameters) { return '' }
@@ -1005,62 +1104,46 @@ function New-CognosPromptAnswersXml {
     if ($pairs.Count -eq 0) { return '' }
 
     $sb = New-Object System.Text.StringBuilder
-    [void]$sb.Append('<promptAnswers>')
+    $hasAnyPrompt = $false
 
     foreach ($pair in $pairs) {
         $rawName = [string]$pair.Name
         if ([string]::IsNullOrWhiteSpace($rawName)) { continue }
 
-        # Tên tham số chuẩn trong Cognos (bỏ tiền tố p_ nếu có để đưa vào thẻ <name>)
+        # TÃªn tham sá»‘ chuáº©n trong Cognos (bá» tiá»n tá»‘ p_ náº¿u cÃ³ Ä‘á»ƒ Ä‘Æ°a vÃ o tháº» <name>)
         $cleanName = if ($rawName.StartsWith('p_') -and $rawName.Length -gt 2) { $rawName.Substring(2) } else { $rawName }
         $escapedName = [System.Security.SecurityElement]::Escape($cleanName)
 
         $val = $pair.Value
-        [void]$sb.Append("<promptValues><name>$escapedName</name><values>")
+        if ($null -eq $val) { continue }
 
-        if ($null -eq $val) {
-            # Tham số rỗng
-        }
-        elseif ($val -is [System.Collections.IEnumerable] -and -not ($val -is [string])) {
-            foreach ($item in $val) {
-                if ($null -ne $item) {
-                    $evalItem = Resolve-DynamicTokens -Text ([string]$item) -Report $Report -Format $Format
-                    if (-not [string]::IsNullOrWhiteSpace($evalItem)) {
-                        $escapedVal = [System.Security.SecurityElement]::Escape($evalItem.Trim())
-                        [void]$sb.Append("<item><SimplePValue><inclusive>true</inclusive><useValue>$escapedVal</useValue></SimplePValue></item>")
-                    }
-                }
-            }
-        }
-        else {
-            $rawStr = [string]$val
-            if ([string]::IsNullOrWhiteSpace($rawStr)) {
-                # Tham số rỗng (ví dụ textBox optional)
-            }
-            else {
-                $evaluated = Resolve-DynamicTokens -Text $rawStr -Report $Report -Format $Format
-                $strTrimmed = $evaluated.Trim()
+        $items = @(Resolve-DynamicTokenArray -Value $val -Report $Report -Format $Format -BasePath $BasePath)
+        $valSb = New-Object System.Text.StringBuilder
+        $hasVal = $false
 
-                # Nếu là chuỗi phân tách bởi dấu phẩy (nhưng không phải định dạng ngày ISO)
-                if ($strTrimmed -match ',' -and $strTrimmed -notmatch '^\d{4}-\d{2}-\d{2}') {
-                    $subItems = @($strTrimmed -split '[,;]' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-                    foreach ($sub in $subItems) {
-                        $escapedVal = [System.Security.SecurityElement]::Escape($sub)
-                        [void]$sb.Append("<item><SimplePValue><inclusive>true</inclusive><useValue>$escapedVal</useValue></SimplePValue></item>")
-                    }
-                }
-                else {
-                    $escapedVal = [System.Security.SecurityElement]::Escape($strTrimmed)
-                    [void]$sb.Append("<item><SimplePValue><inclusive>true</inclusive><useValue>$escapedVal</useValue></SimplePValue></item>")
-                }
+        foreach ($it in $items) {
+            if ($null -ne $it -and -not [string]::IsNullOrWhiteSpace([string]$it)) {
+                $escapedVal = [System.Security.SecurityElement]::Escape(([string]$it).Trim())
+                [void]$valSb.Append("<item><SimplePValue><inclusive>true</inclusive><useValue>$escapedVal</useValue><displayValue>$escapedVal</displayValue></SimplePValue></item>")
+                $hasVal = $true
             }
         }
 
-        [void]$sb.Append("</values></promptValues>")
+        # Chá»‰ thÃªm <promptValues> náº¿u cÃ³ giÃ¡ trá»‹ thá»±c sá»± (trÃ¡nh táº¡o tháº» <values></values> rá»—ng gÃ¢y lá»—i REQUEST_ERROR trÃªn Cognos)
+        if ($hasVal) {
+            if (-not $hasAnyPrompt) {
+                [void]$sb.Append('<promptAnswers>')
+                $hasAnyPrompt = $true
+            }
+            [void]$sb.Append("<promptValues><name>$escapedName</name><values>$($valSb.ToString())</values></promptValues>")
+        }
     }
 
-    [void]$sb.Append('</promptAnswers>')
-    return $sb.ToString()
+    if ($hasAnyPrompt) {
+        [void]$sb.Append('</promptAnswers>')
+        return $sb.ToString()
+    }
+    return ''
 }
 
 function Get-ReportDefinitionUrl {
@@ -1098,37 +1181,20 @@ function Get-ReportDefinitionUrl {
 
     if ($hasParams) {
         if ($forceQueryParam) {
-            # Chế độ tương thích ngược: dùng p_<name> query parameters (không có prompt=true)
+            # Cháº¿ Ä‘á»™ tÆ°Æ¡ng thÃ­ch ngÆ°á»£c: dÃ¹ng p_<name> query parameters
             foreach ($pair in @(Get-ObjectKeyValuePairs -Object $paramsObj)) {
                 $paramName = $pair.Name
                 $val = $pair.Value
                 if ($null -ne $val) {
-                    if ($val -is [System.Collections.IEnumerable] -and -not ($val -is [string])) {
-                        $evalList = New-Object 'System.Collections.Generic.List[string]'
-                        foreach ($item in $val) {
-                            if ($null -ne $item) {
-                                $evalItem = Resolve-DynamicTokens -Text ([string]$item) -Report $Report -Format $Format
-                                if (-not [string]::IsNullOrWhiteSpace($evalItem)) {
-                                    $evalList.Add($evalItem)
-                                }
-                            }
-                        }
-                        if ($evalList.Count -gt 0) {
-                            Add-QueryParameter -Parts $parts -Name $paramName -Value $evalList
-                        }
-                    }
-                    else {
-                        $rawVal = [string]$val
-                        if (-not [string]::IsNullOrWhiteSpace($rawVal)) {
-                            $evaluatedVal = Resolve-DynamicTokens -Text $rawVal -Report $Report -Format $Format
-                            Add-QueryParameter -Parts $parts -Name $paramName -Value $evaluatedVal
-                        }
+                    $evalList = Resolve-DynamicTokenArray -Value $val -Report $Report -Format $Format
+                    if ($evalList.Length -gt 0) {
+                        Add-QueryParameter -Parts $parts -Name $paramName -Value $evalList
                     }
                 }
             }
         }
         else {
-            # Chuẩn IBM Cognos Mashup Service: XML promptAnswers qua tham số xmlData
+            # Chuáº©n IBM Cognos Mashup Service: XML promptAnswers qua tham sá»‘ xmlData
             $promptXml = New-CognosPromptAnswersXml -Parameters $paramsObj -Report $Report -Format $Format
             if (-not [string]::IsNullOrWhiteSpace($promptXml)) {
                 $encodedXml = [uri]::EscapeDataString($promptXml)
@@ -1136,7 +1202,6 @@ function Get-ReportDefinitionUrl {
             }
         }
     }
-
     if ($null -ne $reportOptions) {
         foreach ($pair in @(Get-ObjectKeyValuePairs -Object $reportOptions)) {
             if ($pair.Name -ne 'UseQueryParameters') {

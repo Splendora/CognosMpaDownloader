@@ -169,6 +169,7 @@ Both `CognosReportDownloader.ps1` and `Manage-CognosConfig.ps1` implement `Resol
 | `{Instance}` | `ODS` | Linked Cognos instance name |
 | `{Format}` | `xlsxData` | Output format name |
 | `{p_ParameterName}` | *evaluated value* | Dynamically injects another parameter's value into the path |
+| `@D:\path\list.txt` / `{file:list.txt}` | *array of values* | Loads parameter values from external text file (supports `#`, `//`, `--`, `;` comments & comma/semicolon delimiters) |
 
 ---
 

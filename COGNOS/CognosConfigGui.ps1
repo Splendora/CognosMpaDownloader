@@ -331,17 +331,27 @@ function Update-ReportDetailsPreview {
         $paramPairs = @(Get-ObjectKeyValuePairs -Object $paramsObj)
         if (@($paramPairs).Count -gt 0) {
             foreach ($prop in @($paramPairs)) {
-                if ($prop.Value -is [System.Collections.IEnumerable] -and -not ($prop.Value -is [string])) {
-                    $arrStr = ($prop.Value | ForEach-Object { [string]$_ }) -join ', '
-                    [void]$sb.AppendLine("  * $($prop.Name) = [$arrStr] (Mảng $(@($prop.Value).Count) phần tử)")
-                } else {
-                    $raw = if ($null -ne $prop.Value) { [string]$prop.Value } else { '' }
-                    $eval = if ($raw) { Resolve-DynamicTokens -Text $raw -Report $rep } else { '<trống>' }
-                    if ($raw -and $raw -ne $eval) {
-                        [void]$sb.AppendLine("  * $($prop.Name) = `"$raw`" -> [Giá trị thực tế: $eval]")
+                $raw = if ($null -ne $prop.Value) {
+                    if ($prop.Value -is [System.Collections.IEnumerable] -and -not ($prop.Value -is [string])) {
+                        ($prop.Value | ForEach-Object { [string]$_ }) -join ', '
+                    } else {
+                        [string]$prop.Value
+                    }
+                } else { '' }
+
+                try {
+                    $evalArray = @(Resolve-DynamicTokenArray -Value $prop.Value -Report $rep)
+                    if ($evalArray.Length -gt 1) {
+                        $displaySample = ($evalArray | Select-Object -First 5) -join ', '
+                        $moreTag = if ($evalArray.Length -gt 5) { "... (+$(($evalArray.Length - 5)) giá trị)" } else { '' }
+                        [void]$sb.AppendLine("  * $($prop.Name) = `"$raw`" -> [Đã nạp $(($evalArray.Length)) giá trị: $displaySample $moreTag]")
+                    } elseif ($evalArray.Length -eq 1 -and $evalArray[0] -ne $raw) {
+                        [void]$sb.AppendLine("  * $($prop.Name) = `"$raw`" -> [Giá trị thực tế: $($evalArray[0])]")
                     } else {
                         [void]$sb.AppendLine("  * $($prop.Name) = `"$raw`"")
                     }
+                } catch {
+                    [void]$sb.AppendLine("  * $($prop.Name) = `"$raw`" -> [Lỗi đọc tệp: $($_.Exception.Message)]")
                 }
             }
         } else {
@@ -1279,11 +1289,15 @@ function Show-ReportEditDialog {
     $pnlParamSection = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 220; Padding = New-Object System.Windows.Forms.Padding(0, 6, 0, 6) }
     
     $pnlParamHeaderBar = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 34; Padding = New-Object System.Windows.Forms.Padding(0, 0, 0, 4) }
-    $btnPickChoice = New-Object System.Windows.Forms.Button -Property @{ Text = "Chọn từ Danh mục Server..."; Dock = [System.Windows.Forms.DockStyle]::Right; Width = 220; Height = 28; Margin = New-Object System.Windows.Forms.Padding(0); BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254); ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+    $btnPickChoice = New-Object System.Windows.Forms.Button -Property @{ Text = "Chọn từ Danh mục Server..."; Dock = [System.Windows.Forms.DockStyle]::Right; Width = 190; Height = 28; Margin = New-Object System.Windows.Forms.Padding(0); BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254); ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
     $btnPickChoice.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(190, 215, 250)
     
-    $lblParamHeader = New-Object System.Windows.Forms.Label -Property @{ Text = "Danh sách Tham số (Sử dụng token động như {Yesterday}, {Today}):"; Dock = [System.Windows.Forms.DockStyle]::Fill; TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft; Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold) }
+    $btnPickFile = New-Object System.Windows.Forms.Button -Property @{ Text = "Nạp từ Tệp (.txt, .csv)..."; Dock = [System.Windows.Forms.DockStyle]::Right; Width = 175; Height = 28; Margin = New-Object System.Windows.Forms.Padding(0, 0, 6, 0); BackColor = [System.Drawing.Color]::FromArgb(241, 243, 244); ForeColor = [System.Drawing.Color]::FromArgb(60, 64, 67); FlatStyle = [System.Windows.Forms.FlatStyle]::Flat }
+    $btnPickFile.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(218, 220, 224)
+
+    $lblParamHeader = New-Object System.Windows.Forms.Label -Property @{ Text = "Danh sách Tham số (Token {Yesterday}, danh sách CIF hoặc @tệp.txt):"; Dock = [System.Windows.Forms.DockStyle]::Fill; TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft; Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Bold) }
     $pnlParamHeaderBar.Controls.Add($btnPickChoice)
+    $pnlParamHeaderBar.Controls.Add($btnPickFile)
     $pnlParamHeaderBar.Controls.Add($lblParamHeader)
     $lblParamHeader.BringToFront()
 
@@ -1295,7 +1309,7 @@ function Show-ReportEditDialog {
 
     $colPK = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "ParamName"; HeaderText = "Tên Tham số (ParamName)"; FillWeight = 85 }
     $colPR = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "Required"; HeaderText = "Yêu cầu"; FillWeight = 45; ReadOnly = $true }
-    $colPV = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "ParamValue"; HeaderText = "Giá trị / Token Động (VD: {Yesterday})"; FillWeight = 130 }
+    $colPV = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "ParamValue"; HeaderText = "Giá trị / Token Động (VD: {Yesterday} hoặc @C:\cif.txt)"; FillWeight = 130 }
     [void]$gridParams.Columns.Add($colPK)
     [void]$gridParams.Columns.Add($colPR)
     [void]$gridParams.Columns.Add($colPV)
@@ -1339,7 +1353,28 @@ function Show-ReportEditDialog {
         }
     }
 
+    # Xử lý: Nút Nạp từ Tệp văn bản
+    $handlePickFile = {
+        if ($gridParams.SelectedCells.Count -eq 0 -and $gridParams.SelectedRows.Count -eq 0) {
+            [System.Windows.Forms.MessageBox]::Show("Vui lòng chọn dòng tham số cần gán tệp danh sách giá trị.", "Chưa Chọn Dòng", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+            return
+        }
+        $rowIdx = if ($gridParams.SelectedCells.Count -gt 0) { $gridParams.SelectedCells[0].RowIndex } else { $gridParams.SelectedRows[0].Index }
+        $targetRow = $gridParams.Rows[$rowIdx]
+        $pName = [string]$targetRow.Cells[0].Value
+
+        $ofdBrowse = New-Object System.Windows.Forms.OpenFileDialog
+        $ofdBrowse.Title = "Chọn tệp văn bản chứa danh sách giá trị (CIF, tài khoản, mã...) cho '$pName'"
+        $ofdBrowse.Filter = "Tệp văn bản (*.txt;*.csv)|*.txt;*.csv|Tất cả tệp (*.*)|*.*"
+        $ofdBrowse.RestoreDirectory = $true
+
+        if ($ofdBrowse.ShowDialog($dlg) -eq [System.Windows.Forms.DialogResult]::OK) {
+            $targetRow.Cells[2].Value = "@" + $ofdBrowse.FileName
+        }
+    }
+
     $btnPickChoice.add_Click($handlePickChoice)
+    $btnPickFile.add_Click($handlePickFile)
     $gridParams.add_CellDoubleClick({ & $handlePickChoice })
 
     # 5. Lựa chọn Định dạng Đầu ra

@@ -13,7 +13,7 @@
     "Scheduling":  {
                        "TaskName":  "CognosReportDownloader",
                        "ScheduleType":  "DAILY",
-                       "StartTime":  "09:00",
+                       "StartTime":  "10:00",
                        "RunElevated":  false
                    },
     "Instances":  {
@@ -138,13 +138,70 @@
                         "Instance":  "ODS",
                         "Source":  "iCB2DB75A9092432D9109B877BFF73D73",
                         "SourceType":  "report",
-                        "Enabled":  true,
+                        "Enabled":  false,
                         "Parameters":  {
 
                                        },
                         "Formats":  [
                                         {
                                             "Format":  "spreadsheetML",
+                                            "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
+                                        }
+                                    ]
+                    },
+                    {
+                        "Name":  "TONG HOA LOI ICH ODS",
+                        "Instance":  "ODS",
+                        "Source":  "iDC1DB53949BC4455867200D326A00DD4",
+                        "SourceType":  "report",
+                        "Enabled":  false,
+                        "Parameters":  {
+                                           "p_pDate":  "{Yesterday}",
+                                           "p_pKH":  "@\\\\10.26.136.31\\DuLieu121\\DATAHUB\\Input_cif.txt",
+                                           "p_pBranch":  "",
+                                           "p_pDepartment":  "",
+                                           "p_pCanBoQLTK":  ""
+                                       },
+                        "Formats":  [
+                                        {
+                                            "Format":  "xlsxData",
+                                            "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
+                                        }
+                                    ]
+                    },
+                    {
+                        "Name":  "SPDV",
+                        "Instance":  "ODS",
+                        "Source":  "i614A409645F34F44BAC06F236F8A185F",
+                        "SourceType":  "report",
+                        "Enabled":  false,
+                        "Parameters":  {
+                                           "p_pBranch":  "",
+                                           "p_pDepartment":  "",
+                                           "p_pCanBoQLTK":  "",
+                                           "p_pCIF":  "@\\\\10.26.136.31\\DuLieu121\\DATAHUB\\Input_cif.txt",
+                                           "p_pSPDV_1":  "",
+                                           "p_pSPDV_0":  ""
+                                       },
+                        "Formats":  [
+                                        {
+                                            "Format":  "xlsxData",
+                                            "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
+                                        }
+                                    ]
+                    },
+                    {
+                        "Name":  "STK THANH TOAN",
+                        "Instance":  "ODS",
+                        "Source":  "i7E522EBA48924480B2F937F2F8C3A76D",
+                        "SourceType":  "report",
+                        "Enabled":  true,
+                        "Parameters":  {
+
+                                       },
+                        "Formats":  [
+                                        {
+                                            "Format":  "xlsxData",
                                             "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
                                         }
                                     ]
