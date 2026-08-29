@@ -365,13 +365,13 @@ function Resolve-DynamicTokenArray {
                 foreach ($st in $subTokens) {
                     $stTrimmed = $st.Trim().Trim('"', "'")
                     if (-not [string]::IsNullOrWhiteSpace($stTrimmed)) {
-                        $evalSub = Resolve-DynamicTokens -Text $stTrimmed -Report $Report -Format $Format
+                        $evalSub = if ($stTrimmed -match '\{') { Resolve-DynamicTokens -Text $stTrimmed -Report $Report -Format $Format } else { $stTrimmed }
                         [void]$fileItems.Add($evalSub)
                     }
                 }
             }
             else {
-                $evalLine = Resolve-DynamicTokens -Text $trimmedLine -Report $Report -Format $Format
+                $evalLine = if ($trimmedLine -match '\{') { Resolve-DynamicTokens -Text $trimmedLine -Report $Report -Format $Format } else { $trimmedLine }
                 [void]$fileItems.Add($evalLine)
             }
         }
@@ -1220,10 +1220,12 @@ function Get-CognosReportRequest {
             $promptXml = New-CognosPromptAnswersXml -Parameters $paramsObj -Report $Report -Format $Format
             if (-not [string]::IsNullOrWhiteSpace($promptXml)) {
                 # Luôn dùng POST body form-urlencoded cho xmlData để không bao giờ bị tràn URL (HTTP 414 Request-URI Too Large)
+                # Dùng WebUtility::UrlEncode + ByteArrayContent để hỗ trợ danh sách tham số lớn (> 65519 ký tự) mà không bị giới hạn bởi FormUrlEncodedContent
                 $method = 'POST'
-                $dict = New-Object 'System.Collections.Generic.Dictionary[string,string]'
-                $dict['xmlData'] = $promptXml
-                $httpContent = New-Object System.Net.Http.FormUrlEncodedContent($dict)
+                $postPayload = 'xmlData=' + [System.Net.WebUtility]::UrlEncode($promptXml)
+                $postBytes = [System.Text.Encoding]::UTF8.GetBytes($postPayload)
+                $httpContent = New-Object System.Net.Http.ByteArrayContent -ArgumentList @(,$postBytes)
+                $httpContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse('application/x-www-form-urlencoded; charset=utf-8')
             }
         }
     }

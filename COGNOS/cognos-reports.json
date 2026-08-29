@@ -60,7 +60,7 @@
                         "Formats":  [
                                         {
                                             "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu121\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
                                         }
                                     ]
                     },
@@ -76,7 +76,7 @@
                         "Formats":  [
                                         {
                                             "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu121\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
                                         }
                                     ]
                     },
@@ -93,7 +93,7 @@
                         "Formats":  [
                                         {
                                             "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu121\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
                                         }
                                     ]
                     },
@@ -113,7 +113,7 @@
                         "Formats":  [
                                         {
                                             "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu121\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
                                         }
                                     ]
                     },
@@ -129,7 +129,7 @@
                         "Formats":  [
                                         {
                                             "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu121\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
                                         }
                                     ]
                     },
