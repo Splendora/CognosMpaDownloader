@@ -31,9 +31,9 @@ $ErrorActionPreference = 'Stop'
 # PATHS
 # ============================================================================
 
-$DownloaderPath = 'D:\Repo\CognosDownloader\COGNOS\CognosReportDownloader.ps1'
+$DownloaderPath = 'D:\Repo\CognosMpaDownloader\COGNOS\CognosReportDownloader.ps1'
 
-$ConfigPath = 'D:\Repo\CognosDownloader\COGNOS\cognos-reports.json'
+$ConfigPath = 'D:\Repo\CognosMpaDownloader\COGNOS\cognos-reports.json'
 
 $MacroWorkbook = '\\10.26.136.31\DuLieu121\DATAHUB\Xu ly du lieu_update.xlsm'
 
