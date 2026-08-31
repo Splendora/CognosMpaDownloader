@@ -321,12 +321,18 @@ function Resolve-DynamicTokenArray {
     $rawStr = [string]$Value
     if ([string]::IsNullOrWhiteSpace($rawStr)) { return @('') }
 
-    # 1. Kiá»ƒm tra náº¡p tham sá»‘ tá»« tá»‡p vÄƒn báº£n bÃªn ngoÃ i (@path hoáº·c {file:path})
+    # 1. Kiểm tra nạp tham số từ tệp văn bản bên ngoài (@path hoặc {file:path} hoặc {file-single:path})
     $isFromFile = $false
+    $isSingleString = $false
     $filePathRaw = ''
 
     if ($rawStr -match '^\{file:\s*(.+?)\s*\}$') {
         $isFromFile = $true
+        $filePathRaw = $matches[1].Trim('"', "'", ' ')
+    }
+    elseif ($rawStr -match '^\{file-single:\s*(.+?)\s*\}$') {
+        $isFromFile = $true
+        $isSingleString = $true
         $filePathRaw = $matches[1].Trim('"', "'", ' ')
     }
     elseif ($rawStr.StartsWith('@')) {
@@ -375,6 +381,12 @@ function Resolve-DynamicTokenArray {
                 [void]$fileItems.Add($evalLine)
             }
         }
+        
+        if ($isSingleString) {
+            $joinedString = $fileItems -join ','
+            return @($joinedString)
+        }
+        
         return $fileItems.ToArray()
     }
 
@@ -1172,8 +1184,7 @@ function Get-CognosReportRequest {
     param(
         [Parameter(Mandatory)] [string]$CognosBaseUrl,
         [Parameter(Mandatory)] $Report,
-        [Parameter(Mandatory)] [string]$Format,
-        [switch]$UseQueryParameters
+        [Parameter(Mandatory)] [string]$Format
     )
 
     $sourceType = Get-PropOrKey -Object $Report -Name 'SourceType'
@@ -1191,50 +1202,27 @@ function Get-CognosReportRequest {
     $paramsObj = Get-PropOrKey -Object $Report -Name 'Parameters'
     $hasParams = ($null -ne $paramsObj -and @(Get-ObjectKeyValuePairs -Object $paramsObj).Count -gt 0)
 
-    $forceQueryParam = $UseQueryParameters.IsPresent
     $reportOptions = Get-PropOrKey -Object $Report -Name 'Options'
-    if ($null -ne $reportOptions) {
-        $useQueryOpt = Get-PropOrKey -Object $reportOptions -Name 'UseQueryParameters'
-        if ($null -ne $useQueryOpt -and [bool]$useQueryOpt) {
-            $forceQueryParam = $true
-        }
-    }
 
     $method = 'GET'
     $httpContent = $null
 
     if ($hasParams) {
-        if ($forceQueryParam) {
-            foreach ($pair in @(Get-ObjectKeyValuePairs -Object $paramsObj)) {
-                $paramName = $pair.Name
-                $val = $pair.Value
-                if ($null -ne $val) {
-                    $evalList = Resolve-DynamicTokenArray -Value $val -Report $Report -Format $Format
-                    if ($evalList.Length -gt 0) {
-                        Add-QueryParameter -Parts $parts -Name $paramName -Value $evalList
-                    }
-                }
-            }
-        }
-        else {
-            $promptXml = New-CognosPromptAnswersXml -Parameters $paramsObj -Report $Report -Format $Format
-            if (-not [string]::IsNullOrWhiteSpace($promptXml)) {
-                # Luôn dùng POST body form-urlencoded cho xmlData để không bao giờ bị tràn URL (HTTP 414 Request-URI Too Large)
-                # Dùng WebUtility::UrlEncode + ByteArrayContent để hỗ trợ danh sách tham số lớn (> 65519 ký tự) mà không bị giới hạn bởi FormUrlEncodedContent
-                $method = 'POST'
-                $postPayload = 'xmlData=' + [System.Net.WebUtility]::UrlEncode($promptXml)
-                $postBytes = [System.Text.Encoding]::UTF8.GetBytes($postPayload)
-                $httpContent = New-Object System.Net.Http.ByteArrayContent -ArgumentList @(,$postBytes)
-                $httpContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse('application/x-www-form-urlencoded; charset=utf-8')
-            }
+        $promptXml = New-CognosPromptAnswersXml -Parameters $paramsObj -Report $Report -Format $Format
+        if (-not [string]::IsNullOrWhiteSpace($promptXml)) {
+            # Luôn dùng POST body form-urlencoded cho xmlData để không bao giờ bị tràn URL (HTTP 414 Request-URI Too Large)
+            # Dùng WebUtility::UrlEncode + ByteArrayContent để hỗ trợ danh sách tham số lớn (> 65519 ký tự) mà không bị giới hạn bởi FormUrlEncodedContent
+            $method = 'POST'
+            $postPayload = 'xmlData=' + [System.Net.WebUtility]::UrlEncode($promptXml)
+            $postBytes = [System.Text.Encoding]::UTF8.GetBytes($postPayload)
+            $httpContent = New-Object System.Net.Http.ByteArrayContent -ArgumentList @(,$postBytes)
+            $httpContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse('application/x-www-form-urlencoded')
         }
     }
 
     if ($null -ne $reportOptions) {
         foreach ($pair in @(Get-ObjectKeyValuePairs -Object $reportOptions)) {
-            if ($pair.Name -ne 'UseQueryParameters') {
-                Add-QueryParameter -Parts $parts -Name $pair.Name -Value $pair.Value
-            }
+            Add-QueryParameter -Parts $parts -Name $pair.Name -Value $pair.Value
         }
     }
 
@@ -1249,7 +1237,7 @@ function Get-CognosReportRequest {
 
     $repName = Get-PropOrKey -Object $Report -Name 'Name'
     if ([string]::IsNullOrWhiteSpace($repName)) { $repName = $source }
-    Write-Log "Đã tạo REST request tải báo cáo '$repName' ($Format, Phương thức: $method, tham số: $(if ($hasParams) { if ($forceQueryParam) { 'p_query' } else { 'promptAnswers xmlData POST body' } } else { 'không có' }))" 'DEBUG'
+    Write-Log "Đã tạo REST request tải báo cáo '$repName' ($Format, Phương thức: $method, tham số: $(if ($hasParams) { 'promptAnswers xmlData POST body' } else { 'không có' }))" 'DEBUG'
 
     return [pscustomobject]@{
         Url     = $fullUrl
@@ -1262,11 +1250,10 @@ function Get-ReportDefinitionUrl {
     param(
         [Parameter(Mandatory)] [string]$CognosBaseUrl,
         [Parameter(Mandatory)] $Report,
-        [Parameter(Mandatory)] [string]$Format,
-        [switch]$UseQueryParameters
+        [Parameter(Mandatory)] [string]$Format
     )
 
-    $req = Get-CognosReportRequest -CognosBaseUrl $CognosBaseUrl -Report $Report -Format $Format -UseQueryParameters:$UseQueryParameters
+    $req = Get-CognosReportRequest -CognosBaseUrl $CognosBaseUrl -Report $Report -Format $Format
     return $req.Url
 }
 

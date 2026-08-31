@@ -1,210 +1,204 @@
 ﻿{
-    "CredentialTarget":  "MaCB",
-    "DefaultInstance":  "ODS",
-    "HttpSettings":  {
-                         "TimeoutMinutes":  10
-                     },
-    "RetryPolicy":  {
-                        "Enabled":  true,
-                        "MaxRetries":  3,
-                        "InitialDelaySeconds":  5,
-                        "BackoffMultiplier":  2
-                    },
-    "Scheduling":  {
-                       "TaskName":  "CognosReportDownloader",
-                       "ScheduleType":  "DAILY",
-                       "StartTime":  "10:00",
-                       "RunElevated":  false
-                   },
-    "Instances":  {
-                      "ODS":  {
-                                  "CognosBaseUrl":  "http://10.53.153.173/ibmcognos/bi",
-                                  "Namespace":  "BIDV"
-                              },
-                      "COGNOS11":  {
-                                       "CognosBaseUrl":  "http://10.53.6.164/ibmcognos/bi",
-                                       "Namespace":  "BIDV"
-                                   }
-                  },
-    "Logging":  {
-                    "Enabled":  true,
-                    "LogDirectory":  ".\\Logs",
-                    "LogFileName":  "CognosDownloader_{yyyyMMdd}.log",
-                    "LogLevel":  "INFO",
-                    "ConsoleDebug":  false,
-                    "RetentionDays":  30,
-                    "AuditCsvEnabled":  true,
-                    "AuditCsvPath":  ".\\Logs\\Audit_{yyyyMM}.csv",
-                    "SummaryJsonEnabled":  true,
-                    "SummaryJsonPath":  ".\\Logs\\LatestRun.json"
-                },
-    "Reports":  [
-                    {
-                        "Name":  "Báo cáo nợ đến hạn, quá hạn hàng ngày",
-                        "Instance":  "ODS",
-                        "Source":  "i54414D93B29A4D2289C4E88469871644",
-                        "SourceType":  "report",
-                        "Enabled":  true,
-                        "Parameters":  {
-                                           "p_P_ngay":  "{Yesterday}",
-                                           "p_pChonDenHan":  "",
-                                           "p_P_tungaygoc":  "",
-                                           "p_P_denngaygoc":  "",
-                                           "p_P_tungaylai":  "",
-                                           "p_P_denngaylai":  "",
-                                           "p_P_branch":  "",
-                                           "p_P_department":  "",
-                                           "p_P_class":  "",
-                                           "p_pStatus":  ""
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
-                                        }
-                                    ]
-                    },
-                    {
-                        "Name":  "Báo cáo lãi thấu chi",
-                        "Instance":  "ODS",
-                        "Source":  "iD458DEC46F6A4BB98CA0A98E189BCEF4",
-                        "SourceType":  "report",
-                        "Enabled":  true,
-                        "Parameters":  {
-
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
-                                        }
-                                    ]
-                    },
-                    {
-                        "Name":  "ISS_18 BAO CAO PHAN LOAI NO",
-                        "Instance":  "COGNOS11",
-                        "Source":  "i34E36B7C6FD04F3C9B832C856680CFF8",
-                        "SourceType":  "report",
-                        "Enabled":  true,
-                        "Parameters":  {
-                                           "p_p_cn_xu_ly":  "121000, 121150, 121151, 121152, 121153, 121154, 121155",
-                                           "p_p_date":  "{Yesterday}T00:00:00.000"
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
-                                        }
-                                    ]
-                    },
-                    {
-                        "Name":  "COL001-Báo cáo tổng quan về tài sản",
-                        "Instance":  "COGNOS11",
-                        "Source":  "i891B5E78991E4327A0C609C577A165FA",
-                        "SourceType":  "report",
-                        "Enabled":  true,
-                        "Parameters":  {
-                                           "p_Parameter1":  "{Yesterday}T00:00:00.000",
-                                           "p_Parameter2":  "121000, 121150, 121151, 121152, 121153, 121154, 121155",
-                                           "p_Parameter7":  "MS600B05, MS600B10, MS600B15, CS202B20, MS600B25, MS600B30, MS600B35, MS600B99, CS202C00, CS202C05, CS202C10, CS202C15, CS200C99, GT400G00, GT405G05, GT406G10, GT408G15, OT900I05, AB101M00, AB101M05, AB102M10, AB109M15, AB111M20, PT704P00, PT701P05, PT700P10, PT707P15, OT900R00, OT900R05, DC308R10, OT900R15, OT900R20, OT900R25, OT900R30, MS602S05, MS602S10, MS601T05, MS601T10, AB110X10, OT900X15, AB110X05, OT900Z99",
-                                           "p_Parameter5":  "",
-                                           "p_Parameter6":  ""
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
-                                        }
-                                    ]
-                    },
-                    {
-                        "Name":  "LN+OD",
-                        "Instance":  "ODS",
-                        "Source":  "iEBA14A437AED4B6D9F612C4FBF90541C",
-                        "SourceType":  "report",
-                        "Enabled":  true,
-                        "Parameters":  {
-                                           "p_NgayDuLieu":  "{Yesterday}T00:00:00.000"
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.32\\Dulieu\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
-                                        }
-                                    ]
-                    },
-                    {
-                        "Name":  "TONG QUAN TTKH",
-                        "Instance":  "ODS",
-                        "Source":  "iCB2DB75A9092432D9109B877BFF73D73",
-                        "SourceType":  "report",
-                        "Enabled":  false,
-                        "Parameters":  {
-
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "spreadsheetML",
-                                            "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
-                                        }
-                                    ]
-                    },
-                    {
-                        "Name":  "TONG HOA LOI ICH ODS",
-                        "Instance":  "ODS",
-                        "Source":  "iDC1DB53949BC4455867200D326A00DD4",
-                        "SourceType":  "report",
-                        "Enabled":  false,
-                        "Parameters":  {
-                                           "p_pDate":  "{Yesterday}",
-                                           "p_pKH":  "@\\\\10.26.136.31\\DuLieu121\\DATAHUB\\Input_cif.txt",
-                                           "p_pBranch":  "",
-                                           "p_pDepartment":  "",
-                                           "p_pCanBoQLTK":  ""
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
-                                        }
-                                    ]
-                    },
-                    {
-                        "Name":  "SPDV",
-                        "Instance":  "ODS",
-                        "Source":  "i614A409645F34F44BAC06F236F8A185F",
-                        "SourceType":  "report",
-                        "Enabled":  false,
-                        "Parameters":  {
-                                           "p_pBranch":  "",
-                                           "p_pDepartment":  "",
-                                           "p_pCanBoQLTK":  "",
-                                           "p_pCIF":  "@\\\\10.26.136.31\\DuLieu121\\DATAHUB\\Input_cif.txt",
-                                           "p_pSPDV_1":  "",
-                                           "p_pSPDV_0":  ""
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
-                                        }
-                                    ]
-                    },
-                    {
-                        "Name":  "STK THANH TOAN",
-                        "Instance":  "ODS",
-                        "Source":  "i7E522EBA48924480B2F937F2F8C3A76D",
-                        "SourceType":  "report",
-                        "Enabled":  true,
-                        "Parameters":  {
-
-                                       },
-                        "Formats":  [
-                                        {
-                                            "Format":  "xlsxData",
-                                            "OutputPath":  "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
-                                        }
-                                    ]
-                    }
-                ]
+    "CredentialTarget": "MaCB",
+    "DefaultInstance": "ODS",
+    "HttpSettings": {
+        "TimeoutMinutes": 10
+    },
+    "RetryPolicy": {
+        "Enabled": true,
+        "MaxRetries": 3,
+        "InitialDelaySeconds": 5,
+        "BackoffMultiplier": 2
+    },
+    "Scheduling": {
+        "TaskName": "CognosReportDownloader",
+        "ScheduleType": "DAILY",
+        "StartTime": "10:00",
+        "RunElevated": false
+    },
+    "Instances": {
+        "ODS": {
+            "CognosBaseUrl": "http://10.53.153.173/ibmcognos/bi",
+            "Namespace": "BIDV"
+        },
+        "COGNOS11": {
+            "CognosBaseUrl": "http://10.53.6.164/ibmcognos/bi",
+            "Namespace": "BIDV"
+        }
+    },
+    "Logging": {
+        "Enabled": true,
+        "LogDirectory": ".\\Logs",
+        "LogFileName": "CognosDownloader_{yyyyMMdd}.log",
+        "LogLevel": "INFO",
+        "ConsoleDebug": false,
+        "RetentionDays": 30,
+        "AuditCsvEnabled": true,
+        "AuditCsvPath": ".\\Logs\\Audit_{yyyyMM}.csv",
+        "SummaryJsonEnabled": true,
+        "SummaryJsonPath": ".\\Logs\\LatestRun.json"
+    },
+    "Reports": [
+        {
+            "Name": "Báo cáo nợ đến hạn, quá hạn hàng ngày",
+            "Instance": "ODS",
+            "Source": "i54414D93B29A4D2289C4E88469871644",
+            "SourceType": "report",
+            "Enabled": true,
+            "Parameters": {
+                "p_P_ngay": "{Yesterday}",
+                "p_pChonDenHan": "",
+                "p_P_tungaygoc": "",
+                "p_P_denngaygoc": "",
+                "p_P_tungaylai": "",
+                "p_P_denngaylai": "",
+                "p_P_branch": "",
+                "p_P_department": "",
+                "p_P_class": "",
+                "p_pStatus": ""
+            },
+            "Formats": [
+                {
+                    "Format": "xlsxData",
+                    "OutputPath": "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                }
+            ]
+        },
+        {
+            "Name": "Báo cáo lãi thấu chi",
+            "Instance": "ODS",
+            "Source": "iD458DEC46F6A4BB98CA0A98E189BCEF4",
+            "SourceType": "report",
+            "Enabled": true,
+            "Parameters": {},
+            "Formats": [
+                {
+                    "Format": "xlsxData",
+                    "OutputPath": "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                }
+            ]
+        },
+        {
+            "Name": "ISS_18 BAO CAO PHAN LOAI NO",
+            "Instance": "COGNOS11",
+            "Source": "i34E36B7C6FD04F3C9B832C856680CFF8",
+            "SourceType": "report",
+            "Enabled": true,
+            "Parameters": {
+                "p_p_cn_xu_ly": "121000, 121150, 121151, 121152, 121153, 121154, 121155",
+                "p_p_date": "{Yesterday}T00:00:00.000"
+            },
+            "Formats": [
+                {
+                    "Format": "xlsxData",
+                    "OutputPath": "\\\\10.26.136.32\\Dulieu\\NoQuaHan\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                }
+            ]
+        },
+        {
+            "Name": "COL001-Báo cáo tổng quan về tài sản",
+            "Instance": "COGNOS11",
+            "Source": "i891B5E78991E4327A0C609C577A165FA",
+            "SourceType": "report",
+            "Enabled": true,
+            "Parameters": {
+                "p_Parameter1": "{Yesterday}T00:00:00.000",
+                "p_Parameter2": "121000, 121150, 121151, 121152, 121153, 121154, 121155",
+                "p_Parameter7": "MS600B05, MS600B10, MS600B15, CS202B20, MS600B25, MS600B30, MS600B35, MS600B99, CS202C00, CS202C05, CS202C10, CS202C15, CS200C99, GT400G00, GT405G05, GT406G10, GT408G15, OT900I05, AB101M00, AB101M05, AB102M10, AB109M15, AB111M20, PT704P00, PT701P05, PT700P10, PT707P15, OT900R00, OT900R05, DC308R10, OT900R15, OT900R20, OT900R25, OT900R30, MS602S05, MS602S10, MS601T05, MS601T10, AB110X10, OT900X15, AB110X05, OT900Z99",
+                "p_Parameter5": "",
+                "p_Parameter6": ""
+            },
+            "Formats": [
+                {
+                    "Format": "xlsxData",
+                    "OutputPath": "\\\\10.26.136.32\\Dulieu\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                }
+            ]
+        },
+        {
+            "Name": "LN+OD",
+            "Instance": "ODS",
+            "Source": "iEBA14A437AED4B6D9F612C4FBF90541C",
+            "SourceType": "report",
+            "Enabled": true,
+            "Parameters": {
+                "p_NgayDuLieu": "{Yesterday}T00:00:00.000"
+            },
+            "Formats": [
+                {
+                    "Format": "xlsxData",
+                    "OutputPath": "\\\\10.26.136.32\\Dulieu\\TSBD\\{Yesterday:yyyyMMdd}_{ReportName}.xlsx"
+                }
+            ]
+        },
+        {
+            "Name": "TONG QUAN TTKH",
+            "Instance": "ODS",
+            "Source": "iCB2DB75A9092432D9109B877BFF73D73",
+            "SourceType": "report",
+            "Enabled": false,
+            "Parameters": {},
+            "Formats": [
+                {
+                    "Format": "spreadsheetML",
+                    "OutputPath": "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
+                }
+            ]
+        },
+        {
+            "Name": "TONG HOA LOI ICH ODS",
+            "Instance": "ODS",
+            "Source": "iDC1DB53949BC4455867200D326A00DD4",
+            "SourceType": "report",
+            "Enabled": false,
+            "Parameters": {
+                "p_pDate": "{Yesterday}",
+                "p_pKH": "{file-single:\\\\10.26.136.31\\DuLieu121\\DATAHUB\\Input_cif.txt}",
+                "p_pBranch": "",
+                "p_pDepartment": "",
+                "p_pCanBoQLTK": ""
+            },
+            "Formats": [
+                {
+                    "Format": "xlsxData",
+                    "OutputPath": "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
+                }
+            ]
+        },
+        {
+            "Name": "SPDV",
+            "Instance": "ODS",
+            "Source": "i614A409645F34F44BAC06F236F8A185F",
+            "SourceType": "report",
+            "Enabled": false,
+            "Parameters": {
+                "p_pBranch": "",
+                "p_pDepartment": "",
+                "p_pCanBoQLTK": "",
+                "p_pCIF": "{file-single:\\\\10.26.136.31\\DuLieu121\\DATAHUB\\Input_cif.txt}",
+                "p_pSPDV_1": "",
+                "p_pSPDV_0": ""
+            },
+            "Formats": [
+                {
+                    "Format": "xlsxData",
+                    "OutputPath": "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
+                }
+            ]
+        },
+        {
+            "Name": "STK THANH TOAN",
+            "Instance": "ODS",
+            "Source": "i7E522EBA48924480B2F937F2F8C3A76D",
+            "SourceType": "report",
+            "Enabled": true,
+            "Parameters": {},
+            "Formats": [
+                {
+                    "Format": "xlsxData",
+                    "OutputPath": "\\\\10.26.136.31\\DuLieu121\\DATAHUB\\{ReportName}.xlsx"
+                }
+            ]
+        }
+    ]
 }

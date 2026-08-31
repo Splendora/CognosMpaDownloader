@@ -39,7 +39,8 @@ Shared module dot-sourced by `CognosReportDownloader.ps1`, `Manage-CognosConfig.
     * Extracts mandatory (`IsRequired`) vs. optional prompt indicators.
     * Extracts full choice lists (`useValue` and `displayValue`).
     * Extracts server-configured default values.
-  * Multi-value query parameter serialization (`Add-QueryParameter`): serializes JSON array prompts as repeated query parameters (`&param=val1&param=val2`).
+  * Unified XML Prompt Serialization (`New-CognosPromptAnswersXml`): Converts all parameter types (single values, arrays, dates, file imports) into the authoritative `<promptAnswers><promptValues>` XML format.
+  * Cognos Parameter Submission (`Get-CognosReportRequest`): Pushes the XML prompt payload safely to Cognos via an HTTP POST body `xmlData=` utilizing `ByteArrayContent` to bypass the `.NET` 64KB URL string limit without triggering `Invalid URI` exceptions.
   * Multi-instance endpoint resolution (`Get-CognosInstances`, `Get-CognosReportInstance`).
   * UTF-8 JSON configuration file reading, writing, and backup management (`Load-CognosConfig`, `Save-CognosConfig`).
   * Unified log and console output formatting (`Write-Log`, `Write-AuditLog`).
@@ -209,3 +210,7 @@ Both `CognosReportDownloader.ps1` and `Manage-CognosConfig.ps1` implement `Resol
    * When modifying `cognos-reports.json` programmatically or via scripts, retain UTF-8 encoding and back up the previous config as `cognos-reports.json.bak`.
 5. **Git Workflow & Commits**:
    * Do not commit or push every single change automatically. Only commit or push when explicitly requested by the user or when completing a defined milestone.
+6. **Cognos POST Payload Strictness**:
+   * When pushing `xmlData` payloads to Cognos RDS Mashup endpoints via HTTP POST, the `Content-Type` header MUST be exactly `application/x-www-form-urlencoded`.
+   * **Do NOT append `; charset=utf-8`**. IBM WebSphere/Tomcat servers often silently drop the POST body if the charset is appended, resulting in reports executing with no parameters (producing 0 MB data outputs).
+   * All report parameters must exclusively use the unified `xmlData` POST method. Never revert to `UseQueryParameters` or URL query strings for prompts, as large input arrays (e.g. thousands of CIFs) will crash the `.NET` HTTP client with `HTTP 414 Request-URI Too Large` or `Invalid URI: The Uri string is too long`.
