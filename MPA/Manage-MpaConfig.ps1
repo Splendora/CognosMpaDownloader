@@ -238,6 +238,39 @@ function Action-ListReports {
         $enColor = if ($r.Enabled) { 'Green' } else { 'DarkGray' }
         Write-Host "  [$idx] $enLabel $($r.Name) - Inst: $($r.Instance)" -ForegroundColor $enColor
         Write-Host "        Path: $($r.Path)" -ForegroundColor Gray
+
+        $params = Get-PropOrKey -Object $r -Name 'Parameters'
+        if ($null -ne $params) {
+            $pairs = Get-ObjectKeyValuePairs -Object $params
+            if ($pairs.Count -gt 0) {
+                Write-Host "        Tham số Prompt:" -ForegroundColor Gray
+                foreach ($p in $pairs) {
+                    $rawVal = [string]$p.Value
+                    try {
+                        $evalArray = @(Resolve-DynamicTokenArray -Value $p.Value -Report $r -DefaultDateFormat 'MM/dd/yyyy')
+                        if ($evalArray.Length -gt 1) {
+                            $sampleStr = ($evalArray | Select-Object -First 5) -join ', '
+                            Write-Host "          - $($p.Name) = $rawVal -> [Đã nạp $(($evalArray.Length)) giá trị: $sampleStr]" -ForegroundColor Yellow
+                        } elseif ($evalArray.Length -eq 1 -and $evalArray[0] -ne $rawVal) {
+                            Write-Host "          - $($p.Name) = $rawVal -> (Tính toán: $($evalArray[0]))" -ForegroundColor Yellow
+                        } else {
+                            Write-Host "          - $($p.Name) = $rawVal" -ForegroundColor Yellow
+                        }
+                    } catch {
+                        Write-Host "          - $($p.Name) = $rawVal" -ForegroundColor Yellow
+                    }
+                }
+            }
+        }
+
+        $filters = Get-PropOrKey -Object $r -Name 'FilterExpressions'
+        if ($null -ne $filters -and @($filters).Count -gt 0) {
+            Write-Host "        Điều kiện lọc (FilterExpressions):" -ForegroundColor Gray
+            foreach ($flt in @($filters)) {
+                Write-Host "          - $flt" -ForegroundColor DarkYellow
+            }
+        }
+
         foreach ($f in $r.Formats) {
             Write-Host "        - Định dạng: $($f.Format) => $($f.OutputPath)" -ForegroundColor DarkCyan
         }
@@ -265,6 +298,52 @@ function Action-AddReport {
     $path = Read-Host "Nhập đường dẫn Catalog (VD: /users/{Username}/_portal/ hoặc /shared/Finance/Report1)"
     if ([string]::IsNullOrWhiteSpace($path)) { return }
 
+    $params = [ordered]@{}
+    $askInspect = Read-Host "`nBạn có muốn tự động dò tìm tham số từ máy chủ không? [y/N]"
+    if ($askInspect -eq 'y' -or $askInspect -eq 'Y') {
+        $sess = $null
+        try {
+            $sess = Connect-MpaSessionInteractive -Config $Config -Instance (@{ Name = $instName; Config = $allInst[$instName] })
+            $resolvedPath = Resolve-DynamicTokens -Text $path
+            $resolvedPath = $resolvedPath.Replace('{Username}', $sess.Username)
+            Write-Host "Đang quét tham số và biến lọc từ báo cáo '$resolvedPath'..." -ForegroundColor Cyan
+            $detected = Get-ObieeReportParameters -BaseUrl $sess.BaseUrl -Path $resolvedPath -SessionId $sess.SessionId
+            if ($null -ne $detected -and @($detected).Count -gt 0) {
+                Write-Host "Đã phát hiện $(@($detected).Count) tham số:" -ForegroundColor Green
+                foreach ($dp in $detected) {
+                    $val = Read-Host "  Giá trị cho '$($dp.Name)' [Mặc định: $($dp.DefaultValue)]"
+                    if ([string]::IsNullOrWhiteSpace($val)) { $val = $dp.DefaultValue }
+                    $params[$dp.Name] = $val
+                }
+            } else {
+                Write-Host "Không phát hiện tham số prompted nào trong báo cáo." -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "[-] Không thể dò tìm tham số từ server: $_" -ForegroundColor Red
+        } finally {
+            if ($null -ne $sess -and -not [string]::IsNullOrWhiteSpace($sess.SessionId)) {
+                Disconnect-Obiee -BaseUrl $sess.BaseUrl -SessionId $sess.SessionId | Out-Null
+            }
+        }
+    }
+
+    Write-Host "`nNhập thêm tham số thủ công (Enter để bỏ qua):" -ForegroundColor Gray
+    while ($true) {
+        $pInput = Read-Host "Nhập tham số dạng 'TenThamSo=GiaTri' (hoặc nhấn Enter để tiếp tục)"
+        if ([string]::IsNullOrWhiteSpace($pInput)) { break }
+        if ($pInput -match '^([^=]+)=(.*)$') {
+            $params[$matches[1].Trim()] = $matches[2].Trim()
+        } else {
+            Write-Host "Định dạng không hợp lệ, vui lòng nhập dạng Key=Value." -ForegroundColor Yellow
+        }
+    }
+
+    $filtersList = @()
+    $filterInput = Read-Host "`nNhập điều kiện lọc FilterExpressions nếu có (phân tách dấu chấm phẩy, hoặc Enter để bỏ qua)"
+    if (-not [string]::IsNullOrWhiteSpace($filterInput)) {
+        $filtersList = @($filterInput.Split(';') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
     Write-Host "`nChọn định dạng xuất chính:" -ForegroundColor Cyan
     Write-Host "  [1] CSV (Bảng dữ liệu phân tách dấu phẩy)"
     Write-Host "  [2] EXCEL2007 (Tệp Excel .xlsx)"
@@ -289,18 +368,24 @@ function Action-AddReport {
     $outPath = Read-Host "Nhập đường dẫn lưu tệp [Mặc định: $defaultOut]"
     if ([string]::IsNullOrWhiteSpace($outPath)) { $outPath = $defaultOut }
 
-    $newReport = [pscustomobject]@{
-        Name     = $name
-        Instance = $instName
-        Path     = $path
-        Enabled  = $true
-        Formats  = @(
+    $repObj = [ordered]@{
+        Name       = $name
+        Instance   = $instName
+        Path       = $path
+        Enabled    = $true
+        Parameters = $params
+        Formats    = @(
             [pscustomobject]@{
                 Format     = $fmt
                 OutputPath = $outPath
             }
         )
     }
+    if ($filtersList.Count -gt 0) {
+        $repObj['FilterExpressions'] = $filtersList
+    }
+
+    $newReport = [pscustomobject]$repObj
 
     $currentReports = New-Object System.Collections.Generic.List[object]
     $existing = Get-PropOrKey -Object $Config -Name 'Reports'
@@ -332,10 +417,13 @@ function Action-ToggleOrEditReport {
     Write-Host "  [1] Bật / Tắt kích hoạt (Hiện tại: $(if ($rep.Enabled) { 'BẬT' } else { 'TẮT' }))"
     Write-Host "  [2] Sửa tên hoặc đường dẫn Catalog"
     Write-Host "  [3] Sửa đường dẫn lưu tệp đầu ra"
-    Write-Host "  [4] Xóa báo cáo khỏi cấu hình"
+    Write-Host "  [4] Chỉnh sửa / Thêm Tham số (Parameters)"
+    Write-Host "  [5] Tự động dò tìm tham số từ máy chủ (Get-ObieeReportParameters)"
+    Write-Host "  [6] Chỉnh sửa Điều kiện lọc (FilterExpressions)"
+    Write-Host "  [7] Xóa báo cáo khỏi cấu hình"
     Write-Host "  [0] Hủy bỏ"
 
-    $subC = Read-Host "Lựa chọn [0-4]"
+    $subC = Read-Host "Lựa chọn [0-7]"
     switch ($subC) {
         '1' {
             $rep.Enabled = -not $rep.Enabled
@@ -344,9 +432,9 @@ function Action-ToggleOrEditReport {
         }
         '2' {
             $newName = Read-Host "Tên mới [Hiện tại: $($rep.Name)]"
-            if (-not [string]::IsNullOrWhiteSpace($newName)) { $rep.Name = $newName }
+            if (-not [string]::IsNullOrWhiteSpace($newName)) { Set-ObjectProperty -Object $rep -Name 'Name' -Value $newName }
             $newPath = Read-Host "Đường dẫn Catalog mới [Hiện tại: $($rep.Path)]"
-            if (-not [string]::IsNullOrWhiteSpace($newPath)) { $rep.Path = $newPath }
+            if (-not [string]::IsNullOrWhiteSpace($newPath)) { Set-ObjectProperty -Object $rep -Name 'Path' -Value $newPath }
             Save-MpaConfig -Path $ConfigPath -Config $Config
             Write-Host "[+] Đã cập nhật thông tin báo cáo." -ForegroundColor Green
         }
@@ -362,6 +450,87 @@ function Action-ToggleOrEditReport {
             }
         }
         '4' {
+            $pObj = Get-PropOrKey -Object $rep -Name 'Parameters'
+            $pDict = [ordered]@{}
+            if ($null -ne $pObj) {
+                $pairs = Get-ObjectKeyValuePairs -Object $pObj
+                foreach ($pair in $pairs) { $pDict[$pair.Name] = $pair.Value }
+            }
+            Write-Host "`nCác tham số hiện tại:" -ForegroundColor Cyan
+            foreach ($k in @($pDict.Keys)) {
+                $newV = Read-Host "  $k [Hiện tại: $($pDict[$k])] (Nhấn Enter giữ nguyên, gõ 'DELETE' để xóa)"
+                if ($newV -eq 'DELETE') {
+                    $pDict.Remove($k)
+                } elseif (-not [string]::IsNullOrWhiteSpace($newV)) {
+                    $pDict[$k] = $newV
+                }
+            }
+            Write-Host "Nhập thêm tham số mới (hoặc Enter để kết thúc):" -ForegroundColor Gray
+            while ($true) {
+                $pInput = Read-Host "Nhập dạng 'TenThamSo=GiaTri'"
+                if ([string]::IsNullOrWhiteSpace($pInput)) { break }
+                if ($pInput -match '^([^=]+)=(.*)$') {
+                    $pDict[$matches[1].Trim()] = $matches[2].Trim()
+                }
+            }
+            Set-ObjectProperty -Object $rep -Name 'Parameters' -Value $pDict
+            Save-MpaConfig -Path $ConfigPath -Config $Config
+            Write-Host "[+] Đã cập nhật tham số thành công." -ForegroundColor Green
+        }
+        '5' {
+            $instInfo = Get-MpaReportInstance -Config $Config -Report $rep
+            $sess = $null
+            try {
+                $sess = Connect-MpaSessionInteractive -Config $Config -Instance $instInfo
+                $resolvedPath = Resolve-DynamicTokens -Text $rep.Path -Report $rep
+                $resolvedPath = $resolvedPath.Replace('{Username}', $sess.Username)
+                Write-Host "Đang dò tìm tham số từ máy chủ..." -ForegroundColor Cyan
+                $detected = Get-ObieeReportParameters -BaseUrl $sess.BaseUrl -Path $resolvedPath -SessionId $sess.SessionId
+                if ($null -ne $detected -and @($detected).Count -gt 0) {
+                    $pObj = Get-PropOrKey -Object $rep -Name 'Parameters'
+                    $pDict = [ordered]@{}
+                    if ($null -ne $pObj) {
+                        foreach ($pair in (Get-ObjectKeyValuePairs -Object $pObj)) { $pDict[$pair.Name] = $pair.Value }
+                    }
+                    $added = 0
+                    foreach ($param in $detected) {
+                        if (-not $pDict.Contains($param.Name)) {
+                            $val = Read-Host "Tìm thấy tham số '$($param.Name)'. Giá trị [Mặc định: $($param.DefaultValue)]"
+                            if ([string]::IsNullOrWhiteSpace($val)) { $val = $param.DefaultValue }
+                            $pDict[$param.Name] = $val
+                            $added++
+                        }
+                    }
+                    Set-ObjectProperty -Object $rep -Name 'Parameters' -Value $pDict
+                    Save-MpaConfig -Path $ConfigPath -Config $Config
+                    Write-Host "[+] Đã thêm $added tham số mới từ server." -ForegroundColor Green
+                } else {
+                    Write-Host "Không tìm thấy tham số nào trên server." -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Host "[-] Lỗi dò tìm tham số: $_" -ForegroundColor Red
+            } finally {
+                if ($null -ne $sess -and -not [string]::IsNullOrWhiteSpace($sess.SessionId)) {
+                    Disconnect-Obiee -BaseUrl $sess.BaseUrl -SessionId $sess.SessionId | Out-Null
+                }
+            }
+        }
+        '6' {
+            $curFlts = Get-PropOrKey -Object $rep -Name 'FilterExpressions'
+            $curStr = if ($null -ne $curFlts) { (@($curFlts) -join '; ') } else { '' }
+            Write-Host "Điều kiện lọc hiện tại: $curStr" -ForegroundColor Cyan
+            $newFltsInput = Read-Host "Nhập điều kiện mới (cách nhau dấu ';', gõ 'CLEAR' để xóa)"
+            if ($newFltsInput -eq 'CLEAR') {
+                if ($rep -is [System.Collections.IDictionary]) { [void]$rep.Remove('FilterExpressions') }
+                elseif ($rep.PSObject.Properties['FilterExpressions']) { $rep.PSObject.Properties.Remove('FilterExpressions') }
+            } elseif (-not [string]::IsNullOrWhiteSpace($newFltsInput)) {
+                $flts = @($newFltsInput.Split(';') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                Set-ObjectProperty -Object $rep -Name 'FilterExpressions' -Value $flts
+            }
+            Save-MpaConfig -Path $ConfigPath -Config $Config
+            Write-Host "[+] Đã cập nhật điều kiện lọc." -ForegroundColor Green
+        }
+        '7' {
             $confirm = Read-Host "Xác nhận xóa '$($rep.Name)'? [y/N]"
             if ($confirm -eq 'y' -or $confirm -eq 'Y') {
                 $list = New-Object System.Collections.Generic.List[object]

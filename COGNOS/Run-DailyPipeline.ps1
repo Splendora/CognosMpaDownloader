@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Automated Cognos -> Excel VBA daily pipeline.
 

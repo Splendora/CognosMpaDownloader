@@ -415,6 +415,17 @@ function Update-ReportDetailsPreview {
         }
     }
 
+    $filtersObj = Get-PropOrKey -Object $rep -Name 'FilterExpressions'
+    if ($null -ne $filtersObj -and @($filtersObj).Count -gt 0) {
+        [void]$sb.AppendLine("-----------------------------------------------------------")
+        [void]$sb.AppendLine("BIỂU THỨC LỌC NÂNG CAO (FILTER EXPRESSIONS):")
+        [void]$sb.AppendLine("-----------------------------------------------------------")
+        foreach ($flt in @($filtersObj)) {
+            $evalFlt = Resolve-DynamicTokens -Text ([string]$flt)
+            [void]$sb.AppendLine("  * $evalFlt")
+        }
+    }
+
     $txtDetails.Text = $sb.ToString()
 }
 
@@ -927,6 +938,122 @@ $pnlRetryCard.Controls.Add($rowDelay)
 $rowDelay.BringToFront()
 
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# HỘP THOẠI XÁC NHẬN & GHI ĐÈ THAM SỐ TẢI BÁO CÁO (AD-HOC RUN CONFIRMATION DIALOG)
+# -----------------------------------------------------------------------------
+
+function Show-RunReportConfirmDialog {
+    param(
+        [Parameter(Mandatory)] $Report,
+        [Parameter(Mandatory)] $Config
+    )
+
+    $runDlg = New-Object System.Windows.Forms.Form
+    $runDlg.Text = "Xác Nhận Tải Báo Cáo - $($Report.Name)"
+    $runDlg.Size = New-Object System.Drawing.Size(680, 500)
+    $runDlg.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
+    $runDlg.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $runDlg.MaximizeBox = $false
+    $runDlg.MinimizeBox = $false
+    $runDlg.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+
+    $pnlTop = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Top; Height = 100; Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 8) }
+    $runDlg.Controls.Add($pnlTop)
+
+    $lblInfo = New-Object System.Windows.Forms.Label -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill }
+    $instObj = try { Get-MpaReportInstance -Config $Config -Report $Report } catch { $null }
+    $instName = if ($instObj) { $instObj.Name } else { "MPA" }
+    $fmtObj = if ($Report.Formats -and @($Report.Formats).Count -gt 0) { $Report.Formats[0] } else { $null }
+    $fmtName = if ($fmtObj) { $fmtObj.Format } else { "CSV" }
+
+    $lblInfo.Text = "BÁO CÁO: $($Report.Name)`r`nĐƯỜNG DẪN: $($Report.Path)`r`nMÁY CHỦ: $instName  |  ĐỊNH DẠNG: $fmtName`r`n`r`nBạn có thể điều chỉnh giá trị tham số dưới đây để chạy kiểm tra hoặc tải bù dữ liệu theo ngày tùy ý (không làm thay đổi tệp cấu hình JSON gốc):"
+    $pnlTop.Controls.Add($lblInfo)
+
+    $pnlGrid = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Fill; Padding = New-Object System.Windows.Forms.Padding(16, 0, 16, 8) }
+    $runDlg.Controls.Add($pnlGrid)
+    $pnlGrid.BringToFront()
+
+    $gridRunParams = New-Object System.Windows.Forms.DataGridView -Property @{
+        Dock = [System.Windows.Forms.DockStyle]::Fill
+        BackgroundColor = [System.Drawing.Color]::White
+        RowHeadersVisible = $false
+        AllowUserToAddRows = $false
+        AllowUserToDeleteRows = $false
+        AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
+    }
+
+    $colRPK = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "ParamName"; HeaderText = "Tên Tham Số / Biến"; FillWeight = 80; ReadOnly = $true }
+    $colRPC = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "ConfigValue"; HeaderText = "Cấu Hình / Token"; FillWeight = 90; ReadOnly = $true }
+    $colRPE = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "RunValue"; HeaderText = "Giá Trị Chạy (Có Thể Chỉnh Sửa)"; FillWeight = 130 }
+
+    [void]$gridRunParams.Columns.Add($colRPK)
+    [void]$gridRunParams.Columns.Add($colRPC)
+    [void]$gridRunParams.Columns.Add($colRPE)
+
+    $existParams = Get-PropOrKey -Object $Report -Name 'Parameters'
+    if ($null -ne $existParams) {
+        $pairs = Get-ObjectKeyValuePairs -Object $existParams
+        foreach ($p in $pairs) {
+            $evalArr = @(Resolve-DynamicTokenArray -Value $p.Value -DefaultDateFormat 'MM/dd/yyyy')
+            $evalDisplay = if ($evalArr.Length -gt 1) {
+                ($evalArr -join ', ')
+            } elseif ($evalArr.Length -eq 1) {
+                $evalArr[0]
+            } else {
+                [string]$p.Value
+            }
+            [void]$gridRunParams.Rows.Add($p.Name, [string]$p.Value, $evalDisplay)
+        }
+    }
+
+    $pnlGrid.Controls.Add($gridRunParams)
+
+    $pnlBottom = New-Object System.Windows.Forms.Panel -Property @{ Dock = [System.Windows.Forms.DockStyle]::Bottom; Height = 52; Padding = New-Object System.Windows.Forms.Padding(16, 8, 16, 12) }
+    $runDlg.Controls.Add($pnlBottom)
+
+    $pnlRunBtnFlow = New-Object System.Windows.Forms.FlowLayoutPanel -Property @{
+        Dock = [System.Windows.Forms.DockStyle]::Right
+        FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft
+        AutoSize = $true
+        WrapContents = $false
+    }
+    $pnlBottom.Controls.Add($pnlRunBtnFlow)
+
+    $btnRunConfirm = New-Object System.Windows.Forms.Button -Property @{
+        Text = "Tải Báo Cáo"
+        Size = New-Object System.Drawing.Size(120, 32)
+        BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
+        ForeColor = [System.Drawing.Color]::White
+        FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        DialogResult = [System.Windows.Forms.DialogResult]::OK
+    }
+    $btnRunConfirm.FlatAppearance.BorderSize = 0
+
+    $btnRunCancel = New-Object System.Windows.Forms.Button -Property @{
+        Text = "Hủy Bỏ"
+        Size = New-Object System.Drawing.Size(90, 32)
+        Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 0)
+        DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    }
+
+    $pnlRunBtnFlow.Controls.Add($btnRunConfirm)
+    $pnlRunBtnFlow.Controls.Add($btnRunCancel)
+
+    if ($runDlg.ShowDialog($mainForm) -eq [System.Windows.Forms.DialogResult]::OK) {
+        $overriddenParams = [ordered]@{}
+        foreach ($row in $gridRunParams.Rows) {
+            $k = [string]$row.Cells[0].Value
+            $v = [string]$row.Cells[2].Value
+            if (-not [string]::IsNullOrWhiteSpace($k)) {
+                $overriddenParams[$k] = $v
+            }
+        }
+        return $overriddenParams
+    }
+
+    return $null
+}
+
 # TRÌNH DUYỆT CATALOG ĐỒ HỌA (NULL-SAFE CATALOG EXPLORER DIALOG)
 # -----------------------------------------------------------------------------
 
@@ -1127,30 +1254,30 @@ function Show-ReportEditDialog {
 
     $dlg = New-Object System.Windows.Forms.Form
     $dlg.Text = if ($null -eq $ReportToEdit) { "Thêm Báo Cáo MPA Mới" } else { "Chỉnh Sửa Báo Cáo MPA" }
-    $dlg.Size = New-Object System.Drawing.Size(680, 560)
+    $dlg.Size = New-Object System.Drawing.Size(780, 720)
     $dlg.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
     $dlg.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
     $dlg.MaximizeBox = $false
     $dlg.MinimizeBox = $false
     $dlg.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 
-    $y = 20
+    $y = 16
 
     # 1. Tên Báo cáo
     $lblN = New-Object System.Windows.Forms.Label -Property @{ Text = "Tên Báo Cáo:"; Location = New-Object System.Drawing.Point(24, $y); Size = New-Object System.Drawing.Size(140, 24) }
     $dlg.Controls.Add($lblN)
 
-    $txtN = New-Object System.Windows.Forms.TextBox -Property @{ Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(460, 24) }
+    $txtN = New-Object System.Windows.Forms.TextBox -Property @{ Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(560, 24) }
     if ($null -ne $ReportToEdit) { $txtN.Text = $ReportToEdit.Name }
     $dlg.Controls.Add($txtN)
 
-    $y += 40
+    $y += 36
 
     # 2. Máy chủ
     $lblI = New-Object System.Windows.Forms.Label -Property @{ Text = "Máy Chủ:"; Location = New-Object System.Drawing.Point(24, $y); Size = New-Object System.Drawing.Size(140, 24) }
     $dlg.Controls.Add($lblI)
 
-    $cboI = New-Object System.Windows.Forms.ComboBox -Property @{ Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(240, 24); DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList }
+    $cboI = New-Object System.Windows.Forms.ComboBox -Property @{ Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(260, 24); DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList }
     $instDict = Get-MpaInstances -Config $script:CurrentConfig
     foreach ($k in $instDict.Keys) { [void]$cboI.Items.Add($k) }
     if ($cboI.Items.Count -gt 0) {
@@ -1162,7 +1289,7 @@ function Show-ReportEditDialog {
     }
     $dlg.Controls.Add($cboI)
 
-    $y += 40
+    $y += 36
 
     # 3. Đường dẫn Catalog
     $lblP = New-Object System.Windows.Forms.Label -Property @{ Text = "Đường dẫn Catalog:"; Location = New-Object System.Drawing.Point(24, $y); Size = New-Object System.Drawing.Size(140, 24) }
@@ -1172,16 +1299,27 @@ function Show-ReportEditDialog {
     if ($null -ne $ReportToEdit) { $txtP.Text = $ReportToEdit.Path } else { $txtP.Text = "/users/{Username}/_portal/" }
     $dlg.Controls.Add($txtP)
 
-    $btnDuyet = New-Object System.Windows.Forms.Button -Property @{ Text = "Duyệt..."; Location = New-Object System.Drawing.Point(520, ($y - 1)); Size = New-Object System.Drawing.Size(110, 26) }
+    $btnDuyet = New-Object System.Windows.Forms.Button -Property @{ Text = "Duyệt..."; Location = New-Object System.Drawing.Point(520, ($y - 1)); Size = New-Object System.Drawing.Size(85, 26) }
     $dlg.Controls.Add($btnDuyet)
 
-    $y += 40
+    $btnInspect = New-Object System.Windows.Forms.Button -Property @{
+        Text = "🔍 Dò Biến"
+        Location = New-Object System.Drawing.Point(615, ($y - 1))
+        Size = New-Object System.Drawing.Size(115, 26)
+        BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254)
+        ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
+        FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    }
+    $btnInspect.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(190, 215, 250)
+    $dlg.Controls.Add($btnInspect)
 
-    # 4. Định dạng Xuất
-    $lblF = New-Object System.Windows.Forms.Label -Property @{ Text = "Định Dạng:"; Location = New-Object System.Drawing.Point(24, $y); Size = New-Object System.Drawing.Size(140, 24) }
+    $y += 36
+
+    # 4. Định dạng Xuất & Đường dẫn Lưu Tệp
+    $lblF = New-Object System.Windows.Forms.Label -Property @{ Text = "Định Dạng & Tệp Lưu:"; Location = New-Object System.Drawing.Point(24, $y); Size = New-Object System.Drawing.Size(140, 24) }
     $dlg.Controls.Add($lblF)
 
-    $cboF = New-Object System.Windows.Forms.ComboBox -Property @{ Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(240, 24); DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList }
+    $cboF = New-Object System.Windows.Forms.ComboBox -Property @{ Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(120, 24); DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList }
     @('CSV', 'EXCEL2007', 'PDF', 'MHT') | ForEach-Object { [void]$cboF.Items.Add($_) }
     $selectedFmt = if ($null -ne $ReportToEdit -and $ReportToEdit.Formats -and @($ReportToEdit.Formats).Count -gt 0) {
         $ReportToEdit.Formats[0].Format
@@ -1189,64 +1327,371 @@ function Show-ReportEditDialog {
     $cboF.SelectedItem = $selectedFmt
     $dlg.Controls.Add($cboF)
 
-    $y += 40
-
-    # 5. Đường dẫn Xuất Tệp
-    $lblO = New-Object System.Windows.Forms.Label -Property @{ Text = "Đường Dẫn Lưu Tệp:"; Location = New-Object System.Drawing.Point(24, $y); Size = New-Object System.Drawing.Size(140, 24) }
-    $dlg.Controls.Add($lblO)
-
-    $txtO = New-Object System.Windows.Forms.TextBox -Property @{ Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(460, 24) }
+    $txtO = New-Object System.Windows.Forms.TextBox -Property @{ Location = New-Object System.Drawing.Point(300, $y); Size = New-Object System.Drawing.Size(430, 24) }
     $existingOut = if ($null -ne $ReportToEdit -and $ReportToEdit.Formats -and @($ReportToEdit.Formats).Count -gt 0) {
         $ReportToEdit.Formats[0].OutputPath
     } else { ".\\Reports\\{Yesterday:yyyyMMdd}_{ReportName}.csv" }
     $txtO.Text = $existingOut
     $dlg.Controls.Add($txtO)
 
-    # 6. Tham số / Biến Báo cáo (Parameters / Variables)
-    $lblParams = New-Object System.Windows.Forms.Label -Property @{ Text = "Tham số (Key=Value):"; Location = New-Object System.Drawing.Point(24, $y); Size = New-Object System.Drawing.Size(140, 24) }
-    $dlg.Controls.Add($lblParams)
+    $y += 32
 
-    $txtParams = New-Object System.Windows.Forms.TextBox -Property @{ Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(460, 60); Multiline = $true; ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical }
-    $initParamsLines = @()
+    # Live Preview đường dẫn tệp
+    $lblPrevOut = New-Object System.Windows.Forms.Label -Property @{
+        Text = "Xem trước tệp: "
+        Location = New-Object System.Drawing.Point(170, $y)
+        Size = New-Object System.Drawing.Size(560, 22)
+        ForeColor = [System.Drawing.Color]::FromArgb(24, 134, 75)
+        Font = New-Object System.Drawing.Font("Consolas", 8.5)
+    }
+    $dlg.Controls.Add($lblPrevOut)
+
+    $updatePathPreview = {
+        $fmt = [string]$cboF.SelectedItem
+        $raw = $txtO.Text
+        $fakeRep = [pscustomobject]@{ Name = if (-not [string]::IsNullOrWhiteSpace($txtN.Text)) { $txtN.Text } else { "ReportName" }; Path = $txtP.Text; Instance = [string]$cboI.SelectedItem }
+        $resolved = Resolve-DynamicTokens -Text $raw -Report $fakeRep -Format $fmt
+        $lblPrevOut.Text = "Xem trước tệp: $resolved"
+    }
+    $txtO.Add_TextChanged($updatePathPreview)
+    $txtN.Add_TextChanged($updatePathPreview)
+    $cboF.Add_SelectedIndexChanged($updatePathPreview)
+    & $updatePathPreview
+
+    $y += 30
+
+    # 5. Bảng Quản lý Tham số / Biến (Parameters DataGridView)
+    $lblParamsHeader = New-Object System.Windows.Forms.Label -Property @{
+        Text = "Tham Số & Biến Báo Cáo (Presentation Variables / Prompts):"
+        Location = New-Object System.Drawing.Point(24, $y)
+        Size = New-Object System.Drawing.Size(420, 22)
+        Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+    }
+    $dlg.Controls.Add($lblParamsHeader)
+
+    $y += 24
+
+    $gridParams = New-Object System.Windows.Forms.DataGridView -Property @{
+        Location = New-Object System.Drawing.Point(24, $y)
+        Size = New-Object System.Drawing.Size(706, 150)
+        BackgroundColor = [System.Drawing.Color]::White
+        RowHeadersVisible = $false
+        AllowUserToAddRows = $false
+        AllowUserToDeleteRows = $false
+        AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
+    }
+
+    $colPK = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "ParamName"; HeaderText = "Tên Tham Số / Biến"; FillWeight = 85 }
+    $colPV = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{ Name = "ParamValue"; HeaderText = "Giá Trị / Token Động"; FillWeight = 115 }
+    $colPR = New-Object System.Windows.Forms.DataGridViewTextBoxColumn -Property @{
+        Name = "Preview"
+        HeaderText = "Xem Trước Phân Giải"
+        FillWeight = 130
+        ReadOnly = $true
+    }
+    $colPR.DefaultCellStyle.ForeColor = [System.Drawing.Color]::FromArgb(24, 134, 75)
+    $colPR.DefaultCellStyle.Font = New-Object System.Drawing.Font("Consolas", 8.5)
+
+    [void]$gridParams.Columns.Add($colPK)
+    [void]$gridParams.Columns.Add($colPV)
+    [void]$gridParams.Columns.Add($colPR)
+    $dlg.Controls.Add($gridParams)
+
+    $updateRowPreview = {
+        param($row)
+        if ($null -eq $row) { return }
+        $v = [string]$row.Cells[1].Value
+        if ([string]::IsNullOrWhiteSpace($v)) {
+            $row.Cells[2].Value = ''
+            return
+        }
+        try {
+            $evalArr = @(Resolve-DynamicTokenArray -Value $v -DefaultDateFormat 'MM/dd/yyyy')
+            if ($evalArr.Length -gt 1) {
+                $row.Cells[2].Value = "[$($evalArr.Length) mốc: $($evalArr[0]) ... $($evalArr[-1])]"
+            } elseif ($evalArr.Length -eq 1) {
+                $row.Cells[2].Value = $evalArr[0]
+            } else {
+                $row.Cells[2].Value = ''
+            }
+        } catch {
+            $row.Cells[2].Value = "<Lỗi: $($_.Exception.Message)>"
+        }
+    }
+
+    $gridParams.Add_CellEndEdit({
+        param($s, $e)
+        if ($e.RowIndex -ge 0 -and $e.RowIndex -lt $gridParams.Rows.Count) {
+            & $updateRowPreview $gridParams.Rows[$e.RowIndex]
+        }
+    })
+
+    # Nạp tham số hiện có
     if ($null -ne $ReportToEdit) {
         $existParams = Get-PropOrKey -Object $ReportToEdit -Name 'Parameters'
         if ($null -ne $existParams) {
             $pairs = Get-ObjectKeyValuePairs -Object $existParams
             foreach ($p in $pairs) {
-                $initParamsLines += "$($p.Name)=$($p.Value)"
+                $rIdx = $gridParams.Rows.Add($p.Name, [string]$p.Value, "")
+                & $updateRowPreview $gridParams.Rows[$rIdx]
             }
         }
     }
-    $txtParams.Text = $initParamsLines -join "`r`n"
-    $dlg.Controls.Add($txtParams)
 
-    $y += 68
+    $y += 156
 
-    # 7. Live Preview
-    $lblPrev = New-Object System.Windows.Forms.Label -Property @{ Text = "Xem trước: "; Location = New-Object System.Drawing.Point(170, $y); Size = New-Object System.Drawing.Size(460, 48); ForeColor = [System.Drawing.Color]::FromArgb(24, 134, 75) }
-    $dlg.Controls.Add($lblPrev)
+    # Thanh công cụ bảng tham số
+    $btnAddParam = New-Object System.Windows.Forms.Button -Property @{
+        Text = "+ Thêm Dòng"
+        Location = New-Object System.Drawing.Point(24, $y)
+        Size = New-Object System.Drawing.Size(95, 28)
+        BackColor = [System.Drawing.Color]::White
+    }
+    $dlg.Controls.Add($btnAddParam)
 
-    $updatePreview = {
-        $fmt = [string]$cboF.SelectedItem
-        $raw = $txtO.Text
-        $fakeRep = [pscustomobject]@{ Name = if (-not [string]::IsNullOrWhiteSpace($txtN.Text)) { $txtN.Text } else { "ReportName" }; Path = $txtP.Text; Instance = [string]$cboI.SelectedItem }
-        $resolved = Resolve-DynamicTokens -Text $raw -Report $fakeRep -Format $fmt
-        $lblPrev.Text = "Xem trước: $resolved"
+    $btnDelParam = New-Object System.Windows.Forms.Button -Property @{
+        Text = "- Xóa Dòng"
+        Location = New-Object System.Drawing.Point(125, $y)
+        Size = New-Object System.Drawing.Size(85, 28)
+        BackColor = [System.Drawing.Color]::White
+    }
+    $dlg.Controls.Add($btnDelParam)
+
+    $btnInsertToken = New-Object System.Windows.Forms.Button -Property @{
+        Text = "⚡ Chèn Token Nhanh ▼"
+        Location = New-Object System.Drawing.Point(216, $y)
+        Size = New-Object System.Drawing.Size(165, 28)
+        BackColor = [System.Drawing.Color]::FromArgb(232, 240, 254)
+        ForeColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
+        FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+    }
+    $btnInsertToken.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(190, 215, 250)
+    $dlg.Controls.Add($btnInsertToken)
+
+    $btnLoadFile = New-Object System.Windows.Forms.Button -Property @{
+        Text = "@ Nạp Tệp Danh Sách..."
+        Location = New-Object System.Drawing.Point(387, $y)
+        Size = New-Object System.Drawing.Size(155, 28)
+        BackColor = [System.Drawing.Color]::FromArgb(241, 243, 244)
+    }
+    $dlg.Controls.Add($btnLoadFile)
+
+    # ContextMenuStrip Token Nhanh
+    $tokenMenu = New-Object System.Windows.Forms.ContextMenuStrip
+
+    $insertTokenAction = {
+        param([string]$tok)
+        $targetRow = $null
+        if ($gridParams.SelectedRows.Count -gt 0) {
+            $targetRow = $gridParams.SelectedRows[0]
+        } elseif ($gridParams.SelectedCells.Count -gt 0) {
+            $targetRow = $gridParams.Rows[$gridParams.SelectedCells[0].RowIndex]
+        }
+
+        if ($null -eq $targetRow) {
+            $newIdx = $gridParams.Rows.Add("P_DATE", $tok, "")
+            $targetRow = $gridParams.Rows[$newIdx]
+        } else {
+            $targetRow.Cells[1].Value = $tok
+        }
+        & $updateRowPreview $targetRow
     }
 
-    $txtO.Add_TextChanged($updatePreview)
-    $txtN.Add_TextChanged($updatePreview)
-    $cboF.Add_SelectedIndexChanged($updatePreview)
-    & $updatePreview
+    # 1. Nhóm EOD
+    $menuEod = $tokenMenu.Items.Add("📅 Kết thúc ngày (EOD)")
+    @('{Yesterday}', '{Yesterday:yyyyMMdd}', '{Yesterday:dd/MM/yyyy}', '{Yesterday:yyyy-MM-dd}', '{Today}', '{Today:yyyyMMdd}') | ForEach-Object {
+        $t = $_
+        $sub = $menuEod.DropDownItems.Add($t)
+        $sub.Add_Click({ & $insertTokenAction $t })
+    }
 
-    $y += 56
+    # 2. Nhóm EOM Đơn kỳ
+    $menuEomSingle = $tokenMenu.Items.Add("🗓️ Cuối tháng đơn kỳ (EOM)")
+    @('{LastEOM}', '{LastEOM:yyyyMMdd}', '{LastEOM:dd/MM/yyyy}', '{LastEOM:yyyy-MM-dd}', '{EOM}', '{EOM:yyyyMMdd}', '{EOM:dd/MM/yyyy}') | ForEach-Object {
+        $t = $_
+        $sub = $menuEomSingle.DropDownItems.Add($t)
+        $sub.Add_Click({ & $insertTokenAction $t })
+    }
 
-    # Nút Lưu / Hủy
-    $btnOk = New-Object System.Windows.Forms.Button -Property @{ Text = "Xác Nhận"; Location = New-Object System.Drawing.Point(420, $y); Size = New-Object System.Drawing.Size(100, 32); BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232); ForeColor = [System.Drawing.Color]::White; FlatStyle = [System.Windows.Forms.FlatStyle]::Flat; DialogResult = [System.Windows.Forms.DialogResult]::OK }
+    # 3. Nhóm Chuỗi Đa Kỳ (All EOM / All EOQ)
+    $menuMultiEom = $tokenMenu.Items.Add("📊 Chuỗi Đa Kỳ (All EOM / All EOQ)")
+    @('{AllEOM_CurrentYear}', '{AllEOM_CurrentYear:yyyyMMdd}', '{AllEOM_CurrentYear:dd/MM/yyyy}', '{AllEOM_YTD}', '{AllEOM_YTD:yyyyMMdd}', '{AllEOM_Last12M}', '{AllEOM_LastYear}', '{AllEOQ_CurrentYear}', '{AllEOQ_YTD}') | ForEach-Object {
+        $t = $_
+        $sub = $menuMultiEom.DropDownItems.Add($t)
+        $sub.Add_Click({ & $insertTokenAction $t })
+    }
+
+    # 4. Nhóm Cuối Quý / Nửa Năm / Năm
+    $menuOtherEnd = $tokenMenu.Items.Add("🏛️ Cuối Quý / Nửa Năm / Năm")
+    @('{LastEOQ}', '{EOQ}', '{LastEOH}', '{EOH}', '{LastEOY}', '{EOY}') | ForEach-Object {
+        $t = $_
+        $sub = $menuOtherEnd.DropDownItems.Add($t)
+        $sub.Add_Click({ & $insertTokenAction $t })
+    }
+
+    # 5. Khác
+    $menuMisc = $tokenMenu.Items.Add("👤 Thông tin phiên")
+    @('{Username}', '{Today-7d}') | ForEach-Object {
+        $t = $_
+        $sub = $menuMisc.DropDownItems.Add($t)
+        $sub.Add_Click({ & $insertTokenAction $t })
+    }
+
+    $btnInsertToken.Add_Click({
+        $tokenMenu.Show($btnInsertToken, 0, $btnInsertToken.Height)
+    })
+
+    $btnAddParam.Add_Click({
+        $rIdx = $gridParams.Rows.Add("PARAM", "{Yesterday}", "")
+        & $updateRowPreview $gridParams.Rows[$rIdx]
+    })
+
+    $btnDelParam.Add_Click({
+        if ($gridParams.SelectedRows.Count -gt 0) {
+            foreach ($r in @($gridParams.SelectedRows)) {
+                $gridParams.Rows.Remove($r)
+            }
+        } elseif ($gridParams.SelectedCells.Count -gt 0) {
+            $gridParams.Rows.RemoveAt($gridParams.SelectedCells[0].RowIndex)
+        }
+    })
+
+    $btnLoadFile.Add_Click({
+        $targetRow = $null
+        if ($gridParams.SelectedRows.Count -gt 0) {
+            $targetRow = $gridParams.SelectedRows[0]
+        } elseif ($gridParams.SelectedCells.Count -gt 0) {
+            $targetRow = $gridParams.Rows[$gridParams.SelectedCells[0].RowIndex]
+        }
+
+        $ofd = New-Object System.Windows.Forms.OpenFileDialog -Property @{
+            Title = "Chọn tệp danh sách giá trị (.txt, .csv)"
+            Filter = "Tệp văn bản (*.txt;*.csv)|*.txt;*.csv|Tất cả tệp (*.*)|*.*"
+        }
+        if ($ofd.ShowDialog($dlg) -eq [System.Windows.Forms.DialogResult]::OK) {
+            $fileToken = "@" + $ofd.FileName
+            if ($null -eq $targetRow) {
+                $newIdx = $gridParams.Rows.Add("LIST_PARAM", $fileToken, "")
+                $targetRow = $gridParams.Rows[$newIdx]
+            } else {
+                $targetRow.Cells[1].Value = $fileToken
+            }
+            & $updateRowPreview $targetRow
+        }
+    })
+
+    $y += 38
+
+    # 6. Biểu thức lọc XML nâng cao (FilterExpressions)
+    $lblFltHeader = New-Object System.Windows.Forms.Label -Property @{
+        Text = "Biểu thức lọc XML nâng cao (FilterExpressions - mỗi dòng 1 biểu thức):"
+        Location = New-Object System.Drawing.Point(24, $y)
+        Size = New-Object System.Drawing.Size(550, 22)
+    }
+    $dlg.Controls.Add($lblFltHeader)
+
+    $y += 24
+
+    $txtFilters = New-Object System.Windows.Forms.TextBox -Property @{
+        Location = New-Object System.Drawing.Point(24, $y)
+        Size = New-Object System.Drawing.Size(706, 60)
+        Multiline = $true
+        ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+        Font = New-Object System.Drawing.Font("Consolas", 8.5)
+    }
+    if ($null -ne $ReportToEdit) {
+        $existingFilters = Get-PropOrKey -Object $ReportToEdit -Name 'FilterExpressions'
+        if ($null -ne $existingFilters -and @($existingFilters).Count -gt 0) {
+            $txtFilters.Text = (@($existingFilters) | ForEach-Object { [string]$_ }) -join "`r`n"
+        }
+    }
+    $dlg.Controls.Add($txtFilters)
+
+    $y += 72
+
+    # 7. Nút Lưu / Hủy
+    $btnOk = New-Object System.Windows.Forms.Button -Property @{
+        Text = "Xác Nhận"
+        Location = New-Object System.Drawing.Point(520, $y)
+        Size = New-Object System.Drawing.Size(100, 32)
+        BackColor = [System.Drawing.Color]::FromArgb(26, 115, 232)
+        ForeColor = [System.Drawing.Color]::White
+        FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+        DialogResult = [System.Windows.Forms.DialogResult]::OK
+    }
     $dlg.Controls.Add($btnOk)
 
-    $btnCancel = New-Object System.Windows.Forms.Button -Property @{ Text = "Hủy Bỏ"; Location = New-Object System.Drawing.Point(530, $y); Size = New-Object System.Drawing.Size(100, 32); DialogResult = [System.Windows.Forms.DialogResult]::Cancel }
+    $btnCancel = New-Object System.Windows.Forms.Button -Property @{
+        Text = "Hủy Bỏ"
+        Location = New-Object System.Drawing.Point(630, $y)
+        Size = New-Object System.Drawing.Size(100, 32)
+        DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    }
     $dlg.Controls.Add($btnCancel)
+
+    # Sự kiện Dò Biến tự động
+    $btnInspect.Add_Click({
+        $targetInst = [string]$cboI.SelectedItem
+        $pathVal = $txtP.Text.Trim()
+        if ([string]::IsNullOrWhiteSpace($pathVal)) {
+            [System.Windows.Forms.MessageBox]::Show("Vui lòng nhập đường dẫn catalog trước khi dò tìm.", "Thông báo", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            return
+        }
+
+        $instObj = try { Get-MpaReportInstance -Config $script:CurrentConfig -Report ([pscustomobject]@{ Instance = $targetInst }) } catch { $null }
+        if ($null -eq $instObj) {
+            [System.Windows.Forms.MessageBox]::Show("Không tìm thấy thông tin máy chủ '$targetInst'.", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+            return
+        }
+
+        $credTarget = Get-RequiredProperty -Object $script:CurrentConfig -Name 'CredentialTarget'
+        $cred = Get-WindowsGenericCredential -Target $credTarget
+        if ($null -eq $cred) {
+            [System.Windows.Forms.MessageBox]::Show("Chưa có thông tin xác thực cho '$credTarget'. Vui lòng thiết lập tài khoản trước.", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+            return
+        }
+
+        $dlg.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+        $btnInspect.Enabled = $false
+        try {
+            $plain = Get-PlainTextFromSecureString -SecureString $cred.Password
+            $resolvedPath = Resolve-DynamicTokens -Text $pathVal
+            $resolvedPath = $resolvedPath.Replace('{Username}', $cred.Username)
+
+            $sid = Connect-Obiee -BaseUrl $instObj.Config.MpaBaseUrl -Username $cred.Username -Password $plain
+            try {
+                $detected = Get-ObieeReportParameters -BaseUrl $instObj.Config.MpaBaseUrl -Path $resolvedPath -SessionId $sid
+                if ($null -ne $detected -and @($detected).Count -gt 0) {
+                    $addedCount = 0
+                    foreach ($param in $detected) {
+                        # Kiểm tra xem biến đã có trong bảng chưa
+                        $exists = $false
+                        foreach ($r in $gridParams.Rows) {
+                            if ([string]::Equals([string]$r.Cells[0].Value, $param.Name, [System.StringComparison]::OrdinalIgnoreCase)) {
+                                $exists = $true
+                                break
+                            }
+                        }
+                        if (-not $exists) {
+                            $rIdx = $gridParams.Rows.Add($param.Name, $param.DefaultValue, "")
+                            & $updateRowPreview $gridParams.Rows[$rIdx]
+                            $addedCount++
+                        }
+                    }
+                    [System.Windows.Forms.MessageBox]::Show("Đã dò tìm và nạp thành công $addedCount tham số mới từ báo cáo!", "Thành công", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+                } else {
+                    [System.Windows.Forms.MessageBox]::Show("Không phát hiện tham số hoặc biến lọc nào được đặt điều kiện 'is prompted' trong báo cáo.", "Thông báo", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+                }
+            } finally {
+                Disconnect-Obiee -BaseUrl $instObj.Config.MpaBaseUrl -SessionId $sid | Out-Null
+            }
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show("Không thể dò tìm tham số: $($_.Exception.Message)`n`n(Lưu ý: Bạn vẫn có thể nhập tham số thủ công hoặc bấm nút 'Chèn Token Nhanh')", "Thông báo kết nối", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+        } finally {
+            $dlg.Cursor = [System.Windows.Forms.Cursors]::Default
+            $btnInspect.Enabled = $true
+        }
+    })
 
     $btnDuyet.Add_Click({
         $chosenPath = Show-CatalogBrowserDialog -InstanceKey ([string]$cboI.SelectedItem)
@@ -1265,21 +1710,26 @@ function Show-ReportEditDialog {
         }
 
         $parsedParams = [ordered]@{}
-        if (-not [string]::IsNullOrWhiteSpace($txtParams.Text)) {
-            $lines = $txtParams.Text.Split("`n")
-            foreach ($l in $lines) {
-                $trimmed = $l.Trim()
-                if ($trimmed -match '^([^=]+)=(.*)$') {
-                    $k = $matches[1].Trim()
-                    $v = $matches[2].Trim()
-                    if (-not [string]::IsNullOrWhiteSpace($k)) {
-                        $parsedParams[$k] = $v
-                    }
+        foreach ($r in $gridParams.Rows) {
+            $k = [string]$r.Cells[0].Value
+            $v = [string]$r.Cells[1].Value
+            if (-not [string]::IsNullOrWhiteSpace($k)) {
+                $parsedParams[$k.Trim()] = if ($null -ne $v) { $v.Trim() } else { '' }
+            }
+        }
+
+        $filtersList = @()
+        if (-not [string]::IsNullOrWhiteSpace($txtFilters.Text)) {
+            $flLines = $txtFilters.Text.Split("`n")
+            foreach ($fl in $flLines) {
+                $flTrim = $fl.Trim()
+                if (-not [string]::IsNullOrWhiteSpace($flTrim)) {
+                    $filtersList += $flTrim
                 }
             }
         }
 
-        return [pscustomobject]@{
+        $repOut = [ordered]@{
             Name       = $txtN.Text.Trim()
             Instance   = [string]$cboI.SelectedItem
             Path       = $txtP.Text.Trim()
@@ -1292,6 +1742,11 @@ function Show-ReportEditDialog {
                 }
             )
         }
+        if ($filtersList.Count -gt 0) {
+            $repOut['FilterExpressions'] = $filtersList
+        }
+
+        return [pscustomobject]$repOut
     }
     return $null
 }
@@ -1318,10 +1773,20 @@ $btnEditReport.Add_Click({
     $selRep = $gridReports.SelectedRows[0].Tag
     $edited = Show-ReportEditDialog -ReportToEdit $selRep
     if ($null -ne $edited) {
-        $selRep.Name = $edited.Name
-        $selRep.Instance = $edited.Instance
-        $selRep.Path = $edited.Path
-        $selRep.Formats = $edited.Formats
+        Set-ObjectProperty -Object $selRep -Name 'Name' -Value $edited.Name
+        Set-ObjectProperty -Object $selRep -Name 'Instance' -Value $edited.Instance
+        Set-ObjectProperty -Object $selRep -Name 'Path' -Value $edited.Path
+        Set-ObjectProperty -Object $selRep -Name 'Formats' -Value $edited.Formats
+        Set-ObjectProperty -Object $selRep -Name 'Parameters' -Value $edited.Parameters
+        if ($edited.PSObject.Properties['FilterExpressions']) {
+            Set-ObjectProperty -Object $selRep -Name 'FilterExpressions' -Value $edited.FilterExpressions
+        } else {
+            if ($selRep -is [System.Collections.IDictionary]) {
+                [void]$selRep.Remove('FilterExpressions')
+            } elseif ($selRep.PSObject.Properties['FilterExpressions']) {
+                $selRep.PSObject.Properties.Remove('FilterExpressions')
+            }
+        }
         Refresh-ReportsGrid
         Gui-Log "Đã cập nhật thông tin báo cáo: '$($edited.Name)'." 'OK'
     }
@@ -1442,10 +1907,18 @@ $btnTestAll.Add_Click({
 })
 
 $btnRunReport.Add_Click({
-    if ($gridReports.SelectedRows.Count -eq 0) { return }
+    if ($gridReports.SelectedRows.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show("Vui lòng chọn một báo cáo để tải.", "Thông báo", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        return
+    }
     $rep = $gridReports.SelectedRows[0].Tag
+    if ($null -eq $rep) { return }
+
+    $confirmedParams = Show-RunReportConfirmDialog -Report $rep -Config $script:CurrentConfig
+    if ($null -eq $confirmedParams) { return }
+
     $mainForm.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
-    Gui-Log "Đang tải thử nghiệm báo cáo '$($rep.Name)'..." 'INFO'
+    Gui-Log "Đang tải báo cáo '$($rep.Name)'..." 'INFO'
 
     try {
         $instInfo = Get-MpaReportInstance -Config $script:CurrentConfig -Report $rep
@@ -1470,9 +1943,8 @@ $btnRunReport.Add_Click({
                 $resolvedOut = Join-Path $scriptDir $resolvedOut
             }
 
-            $repParams = Get-PropOrKey -Object $rep -Name 'Parameters'
             $repFilters = Get-PropOrKey -Object $rep -Name 'FilterExpressions'
-            $exportResult = Export-ObieeAnalysis -BaseUrl $baseUrl -Path $resolvedPath -Format $format -SessionId $sid -Parameters $repParams -FilterExpressions $repFilters
+            $exportResult = Export-ObieeAnalysis -BaseUrl $baseUrl -Path $resolvedPath -Format $format -SessionId $sid -Parameters $confirmedParams -FilterExpressions $repFilters
             $size = Save-ObieeExportData -ViewData $exportResult.ViewData -Format $format -OutputPath $resolvedOut
 
             $sizeKb = [math]::Round($size / 1KB, 1)

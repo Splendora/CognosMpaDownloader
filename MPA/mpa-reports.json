@@ -34,6 +34,20 @@
                     "SummaryJsonPath":  ".\\Logs\\LatestRun.json"
                 },
     "Reports":  [
+                    {
+                        "Name":  "Code KPI QLKH",
+                        "Instance":  "MPA",
+                        "Path":  "/users/168933/_portal/Code KPI QLKH",
+                        "Enabled":  true,
+                        "Parameters":  {
 
+                                       },
+                        "Formats":  [
+                                        {
+                                            "Format":  "CSV",
+                                            "OutputPath":  ".\\\\Reports\\\\{Yesterday:yyyyMMdd}_{ReportName}.csv"
+                                        }
+                                    ]
+                    }
                 ]
 }

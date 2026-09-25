@@ -274,7 +274,7 @@ Script sẽ thực hiện tuần tự:
     {
       "Name": "Báo cáo ROA Chi Nhánh",
       "Instance": "MPA",
-      "CatalogPath": "/users/{Username}/_portal/ROA",
+      "Path": "/users/{Username}/_portal/ROA",
       "Enabled": true,
       "Formats": [
         {
@@ -291,7 +291,7 @@ Script sẽ thực hiện tuần tự:
 
 ## 8. Hệ Thống Phân Giải Token Động (Dynamic Tokens)
 
-Hệ thống hỗ trợ thay thế linh hoạt các biến ngày tháng và metadata trong cả đường dẫn Catalog (`CatalogPath`) lẫn đường dẫn xuất tệp (`OutputPath`):
+Hệ thống hỗ trợ thay thế linh hoạt các biến ngày tháng và metadata trong cả đường dẫn Catalog (`Path`) lẫn đường dẫn xuất tệp (`OutputPath`):
 
 | Token | Ví Dụ Giá Trị Đầu Ra | Ý Nghĩa / Mục Đích |
 | :--- | :--- | :--- |
@@ -338,7 +338,7 @@ Thông qua dịch vụ `analysisExportViewsService`, MPA Downloader hỗ trợ x
 
 - **Ghi log chi tiết (`Write-Log`):** Ghi nhận đầy đủ thông tin các bước SOAP envelope, HTTP status code và nội dung phản hồi.
 - **Audit CSV hàng tháng (`Audit_{yyyyMM}.csv`):** Lưu trữ lịch sử tải chi tiết phục vụ kiểm tra và đối soát vận hành:
-  - *Cột dữ liệu:* `Timestamp`, `ReportName`, `CatalogPath`, `Format`, `Status`, `HttpStatusCode`, `FileSizeBytes`, `DurationMs`, `OutputPath`, `ErrorMessage`.
+  - *Cột dữ liệu:* `Timestamp`, `ReportName`, `Path`, `Format`, `Status`, `HttpStatusCode`, `FileSizeBytes`, `DurationMs`, `OutputPath`, `ErrorMessage`.
 - **Tổng kết báo cáo (`LatestRun.json`):** Cung cấp dữ liệu thống kê tổng thể số lượt thành công/thất bại, tổng dung lượng và thời gian thực thi cho các hệ thống giám sát.
 - **Tự động dọn dẹp log:** Tự động xóa các file nhật ký vượt quá số ngày cấu hình (`RetentionDays`, mặc định 18-30 ngày).
 
